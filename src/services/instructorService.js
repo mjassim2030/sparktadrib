@@ -22,10 +22,13 @@ async function fetchJson(url, options = {}) {
   return data;
 }
 
+/** Keep original shape; add `_id` (convenience) and `bio` for UI use */
 const normalizeShallow = (i) => ({
   id: String(i?._id ?? i?.id ?? ""),
+  _id: String(i?._id ?? i?.id ?? ""), // optional convenience for components expecting _id
   name: i?.name || i?.email || String(i?._id ?? i?.id ?? ""),
   email: i?.email || "",
+  bio: i?.bio || "",
 });
 
 /* CREATE: POST /instructors */
@@ -38,16 +41,32 @@ export async function create(payload) {
       ...authHeader(),
     },
     body: JSON.stringify(payload),
-    // credentials: "include", // uncomment if your API uses cookies
   });
 }
 
-/* INDEX: GET /instructors -> normalized [{ id, name, email }] */
-export async function index() {
-  const json = await fetchJson(`${API_BASE}`, {
+/**
+ * INDEX: GET /instructors -> normalized [{ id, _id, name, email, bio }]
+ * Accepts either a search string (q) or an object of query params.
+ *   - index()              -> all
+ *   - index("ali")         -> ?q=ali
+ *   - index({ q: "ali" })  -> ?q=ali
+ */
+export async function index(q) {
+  const params = new URLSearchParams();
+  if (typeof q === "string" && q.trim()) {
+    params.set("q", q.trim());
+  } else if (q && typeof q === "object") {
+    for (const [k, v] of Object.entries(q)) {
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        params.set(k, String(v).trim());
+      }
+    }
+  }
+  const url = params.toString() ? `${API_BASE}?${params.toString()}` : `${API_BASE}`;
+
+  const json = await fetchJson(url, {
     method: "GET",
     headers: { Accept: "application/json", ...authHeader() },
-    // credentials: "include",
   });
 
   const arr = Array.isArray(json)
@@ -60,8 +79,6 @@ export async function index() {
 
   return arr.map(normalizeShallow);
 }
-
-/* Optional helpers (use if needed) */
 
 /* SHOW: GET /instructors/:id -> full object from API */
 export async function show(id) {

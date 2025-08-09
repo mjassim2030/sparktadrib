@@ -12,6 +12,8 @@ import * as hootService from './services/hootService';
 import CourseDetails from './components/CourseDetails/CourseDetails';
 import HootForm from './components/HootForm/HootForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
+import InstructorList from './components/InstructorList/InstructorList';
+import InstructorDetails from './components/InstructorDetails/InstructorDetails';
 
 const AppLayout = () => (
   <div className="flex min-h-screen bg-gray-100">
@@ -72,6 +74,8 @@ const App = () => {
           <Route path="courses/:id" element={<CourseDetails />} />
           <Route path="courses/:id/edit" element={<HootForm handleUpdateHoot={handleUpdateHoot} />} />
           <Route path="instructors/new" element={<InstructorForm />} />
+          <Route path="/instructors" element={<InstructorList />} />
+          <Route path="/instructors/:id" element={<InstructorDetails />} />
         </Route>
       </Route>
 

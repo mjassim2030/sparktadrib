@@ -1,7 +1,7 @@
 // src/components/CourseGrid/CourseGrid.jsx
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { List, Grid } from "lucide-react";
+import { List, Grid, Plus } from "lucide-react";
 
 const formatDate = (d) => {
   if (!d) return "";
@@ -10,7 +10,6 @@ const formatDate = (d) => {
 };
 
 const normalizeCourse = (raw) => {
-  // Accept both your new model fields and any legacy aliases found in the UI
   const title = raw.title || raw.name || "Untitled course";
   const students =
     typeof raw.students === "number"
@@ -49,7 +48,6 @@ const CourseCard = ({ c }) => (
     to={`/courses/${c.id}`}
     className="group block overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm hover:shadow-lg transition-shadow"
   >
-    {/* Image / banner */}
     <div className="aspect-[16/9] w-full bg-gray-100 overflow-hidden">
       {c.imageUrl ? (
         <img
@@ -64,7 +62,6 @@ const CourseCard = ({ c }) => (
       )}
     </div>
 
-    {/* Content */}
     <div className="p-4">
       <h3 className="line-clamp-2 text-base font-semibold text-gray-900">
         {c.title}
@@ -89,7 +86,6 @@ const CourseCard = ({ c }) => (
       )}
     </div>
 
-    {/* Footer */}
     <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3">
       <span className="text-sm font-medium text-blue-700 group-hover:underline">
         View details
@@ -137,14 +133,24 @@ const CourseGrid = ({ hoots = [] }) => {
     return hoots.map(normalizeCourse);
   }, [hoots]);
 
-  if (!courses.length) return <EmptyState />;
-
   return (
     <main className="p-6">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Courses</h1>
-        <div className="flex gap-2">
+
+        <div className="flex items-center gap-2">
+          {/* New Course button (top-right) */}
+          <Link
+            to="/courses/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+            aria-label="Create new course"
+          >
+            <Plus size={16} />
+            New Course
+          </Link>
+
+          {/* View toggles */}
           <button
             type="button"
             onClick={() => setView("list")}
@@ -175,7 +181,9 @@ const CourseGrid = ({ hoots = [] }) => {
       </div>
 
       {/* Content */}
-      {view === "grid" ? (
+      {courses.length === 0 ? (
+        <EmptyState />
+      ) : view === "grid" ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {courses.map((c) => (
             <CourseCard key={c.id} c={c} />
@@ -183,7 +191,6 @@ const CourseGrid = ({ hoots = [] }) => {
         </div>
       ) : (
         <div className="space-y-3">
-          {/* Header row for desktop */}
           <div className="hidden md:grid md:grid-cols-[1.5fr,0.8fr,0.8fr,0.8fr,auto] text-xs font-semibold text-gray-600 px-2">
             <div>Title</div>
             <div>Students</div>

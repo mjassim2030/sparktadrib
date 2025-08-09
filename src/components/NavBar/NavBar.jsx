@@ -1,7 +1,10 @@
 import React, { useContext } from 'react'
 import { Link } from 'react-router'
 import { UserContext } from '../../contexts/UserContext'
-import { Home, BookOpen, PlusCircle, UserPlus, LogOut, LogIn, UserPlus as SignUpIcon } from 'lucide-react'
+import {
+  Home, BookOpen, PlusCircle, UserPlus, LogOut, LogIn,
+  UserPlus as SignUpIcon, Settings, CreditCard
+} from 'lucide-react'
 
 const NavBar = () => {
   const { user, setUser } = useContext(UserContext)
@@ -15,16 +18,18 @@ const NavBar = () => {
     'flex items-center py-2 gap-3 px-2 rounded-lg hover:bg-green-800 transition'
 
   return (
-    <nav className="w-50 h-screen sticky top-0 shrink-0 bg-green-600 text-white flex flex-col p-6 space-y-3 shadow-lg">
+    <nav className="w-50 h-screen sticky top-0 shrink-0 bg-green-600 text-white flex flex-col p-6 gap-3 shadow-lg">
       {/* Brand / Logo */}
-      <div className="mb-5">
+      <div className="mb-2 text-center">
         <Link to="/" className="text-3xl font-bold text-white hover:text-gray-300">
           TADRIB
         </Link>
+        <p><small><center>v.01</center></small></p>
+
       </div>
 
-      {/* Navigation Links */}
-      <ul className="flex flex-col space-y-3">
+      {/* Navigation Links (fills available height) */}
+      <ul className="flex-1 flex flex-col gap-3 overflow-y-auto">
         {user ? (
           <>
             <li>
@@ -38,13 +43,18 @@ const NavBar = () => {
               </Link>
             </li>
             <li>
-              <Link to="/courses/new" className={linkClasses}>
-                <PlusCircle size={20} /> New Course
+              <Link to="/instructors" className={linkClasses}>
+                <UserPlus size={20} /> Instructors
               </Link>
             </li>
             <li>
-              <Link to="/instructors/new" className={linkClasses}>
-                <UserPlus size={20} /> New Instructor
+              <Link to="/attendance" className={linkClasses}>
+                <UserPlus size={20} /> Attendance
+              </Link>
+            </li>
+            <li>
+              <Link to="/payments" className={linkClasses}>
+                <UserPlus size={20} /> Payments
               </Link>
             </li>
             <li>
@@ -75,6 +85,20 @@ const NavBar = () => {
             </li>
           </>
         )}
+      </ul>
+
+      {/* Bottom section (stays pinned) */}
+      <ul className="flex flex-col gap-3 pt-4 border-t border-white/20">
+        <li>
+          <Link to="/subscriptions" className={linkClasses}>
+            <CreditCard size={20} /> Subscriptions
+          </Link>
+        </li>
+        <li>
+          <Link to="/settings" className={linkClasses}>
+            <Settings size={20} /> Settings
+          </Link>
+        </li>
       </ul>
     </nav>
   )
