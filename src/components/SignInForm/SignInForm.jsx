@@ -2,7 +2,7 @@ import { useState, useContext } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { signIn } from '../../services/authService'
 import { UserContext } from '../../contexts/UserContext'
-const LEFT_IMAGE_URL = "../../src/assets/training-bw-square.jpg"; // square B&W photo
+const LEFT_IMAGE_URL = "/images/training-bw-square.jpg"; 
 
 const SignInForm = () => {
   const navigate = useNavigate()
