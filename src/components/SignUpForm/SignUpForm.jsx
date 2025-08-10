@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router';
 import { signUp } from '../../services/authService';
 import { UserContext } from '../../contexts/UserContext';
 
-const LEFT_IMAGE_URL = "../../src/assets/training-bw-square.jpg"; // same image as Sign In
+const LEFT_IMAGE_URL = "/images/training-bw-square.jpg"; 
 
 const SignUpForm = () => {
   const navigate = useNavigate();
