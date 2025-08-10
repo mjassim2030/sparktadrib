@@ -1,6 +1,5 @@
-// src/components/HootForm/HootForm.jsx
-import { useEffect, useMemo, useState, useRef } from "react";
-import { useParams } from "react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router"; // keep as in your project; switch to 'react-router-dom' if needed
 import * as courseService from "../../services/courseService";
 import * as instructorService from "../../services/instructorService";
 import { List, Grid } from "lucide-react";
@@ -14,28 +13,86 @@ const initialFormData = {
   location: "News",
   start_date: "",
   end_date: "",
-  courseDatesTimes: [],
+  courseDatesTimes: [], // [{date:'YYYY-MM-DD', start_time:'HH:MM', end_time:'HH:MM'}]
   range_start_time: "16:00",
   range_end_time: "18:00",
-  daysOfWeek: [],
-  instructors: [],       // array of instructor IDs
-  cost: "",              // per student / course
+  daysOfWeek: [], // [0..6]
+  instructors: [], // [instructorId]
+  cost: "", // per student / course
   students: "",
   materialsCost: "",
-  instructorRates: {},   // { [instructorId]: hourlyRate }
+  instructorRates: {}, // { [instructorId]: hourlyRate }
 };
 
-/* ------------------------------- HootForm --------------------------------- */
+/* ------------------------------- Utilities -------------------------------- */
+const toDateOnly = (v) => {
+  if (!v) return "";
+  const s = String(v);
+  // Handles Date, ISO, or 'YYYY-MM-DD'
+  if (v instanceof Date) return isNaN(v) ? "" : v.toISOString().slice(0, 10);
+  if (s.length >= 10 && s[4] === "-" && s[7] === "-") return s.slice(0, 10);
+  try {
+    const d = new Date(s);
+    return isNaN(d) ? "" : d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const toHHMM = (v, fallback = "00:00") => {
+  if (!v && v !== 0) return fallback;
+  const s = String(v);
+  // Accept 'HH:MM[:SS]'
+  const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (m) {
+    const hh = m[1].padStart(2, "0");
+    const mm = m[2];
+    return `${hh}:${mm}`;
+  }
+  // Accept minutes since midnight
+  const asNum = Number(s);
+  if (Number.isFinite(asNum)) {
+    const hh = Math.floor(asNum / 60).toString().padStart(2, "0");
+    const mm = Math.floor(asNum % 60).toString().padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  return fallback;
+};
+
+const diffHours = (startHHMM, endHHMM) => {
+  if (!startHHMM || !endHHMM) return 0;
+  const [sh, sm] = startHHMM.split(":").map((x) => parseInt(x, 10));
+  const [eh, em] = endHHMM.split(":").map((x) => parseInt(x, 10));
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
+  let start = sh * 60 + sm;
+  let end = eh * 60 + em;
+  if (end < start) end += 24 * 60; // crosses midnight
+  return (end - start) / 60;
+};
+
+const toNumber = (v) => {
+  const n = parseFloat(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/* ------------------------------- CourseForm ------------------------------- */
 const CourseForm = (props) => {
-  const { hootId } = useParams();
+  // Accept multiple param names to be safe with existing routes
+  const { hootId, courseId, id } = useParams();
+  const recordId = hootId || courseId || id; // editing when truthy
 
   // UI state
-  const [view, setView] = useState("list");           // "list" | "grid"
+  const [view, setView] = useState("list"); // "list" | "grid"
   const [daysOpen, setDaysOpen] = useState(false);
   const [instructorsOpen, setInstructorsOpen] = useState(false);
 
   // Data state
   const [formData, setFormData] = useState(initialFormData);
+
+  // Flags
+  const [courseLoading, setCourseLoading] = useState(false);
+  const [courseErr, setCourseErr] = useState("");
+  const [skipNextGen, setSkipNextGen] = useState(false); // prevent schedule overwrite on first hydration
 
   // Instructors from DB
   const [instructors, setInstructors] = useState([]); // [{id, name, email}]
@@ -50,29 +107,59 @@ const CourseForm = (props) => {
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (!hootId) return;
-      const hootData = await courseService.show(hootId);
-      if (!alive) return;
-      setFormData((s) => ({
-        ...initialFormData,
-        ...hootData,
-        daysOfWeek: hootData?.daysOfWeek || [],
-        courseDatesTimes: hootData?.courseDatesTimes || [],
-        // normalize instructor ids
-        instructors: (hootData?.instructors || []).map((x) =>
-          typeof x === "string" ? x : String(x?._id || x?.id)
-        ),
-        students: hootData?.students ?? "",
-        materialsCost: hootData?.materialsCost ?? "",
-        instructorRates: hootData?.instructorRates || {},
-      }));
+      if (!recordId) return;
+      try {
+        setCourseLoading(true);
+        setCourseErr("");
+        const raw = await courseService.show(recordId);
+        if (!alive) return;
+
+        // Normalize incoming data to the form shape
+        const normalized = {
+          ...initialFormData,
+          ...raw,
+          title: raw?.title ?? "",
+          description: raw?.description ?? "",
+          location: raw?.location ?? "News",
+          start_date: toDateOnly(raw?.start_date),
+          end_date: toDateOnly(raw?.end_date),
+          range_start_time: toHHMM(raw?.range_start_time ?? "16:00", "16:00"),
+          range_end_time: toHHMM(raw?.range_end_time ?? "18:00", "18:00"),
+          daysOfWeek: Array.isArray(raw?.daysOfWeek) ? [...raw.daysOfWeek].sort((a, b) => a - b) : [],
+          courseDatesTimes: Array.isArray(raw?.courseDatesTimes)
+            ? raw.courseDatesTimes
+                .map((x) => ({
+                  date: toDateOnly(x?.date),
+                  start_time: toHHMM(x?.start_time, "16:00"),
+                  end_time: toHHMM(x?.end_time, "18:00"),
+                }))
+                .filter((x) => x.date)
+                .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+            : [],
+          instructors: (raw?.instructors || []).map((x) =>
+            typeof x === "string" ? x : String(x?._id || x?.id)
+          ),
+          cost: raw?.cost ?? "",
+          students: raw?.students ?? "",
+          materialsCost: raw?.materialsCost ?? "",
+          instructorRates: raw?.instructorRates || {},
+        };
+
+        // Prevent the auto-regenerate effect from overwriting existing schedule once
+        setSkipNextGen(true);
+        setFormData(normalized);
+      } catch (e) {
+        if (alive) setCourseErr(e?.message || "Failed to load course");
+      } finally {
+        if (alive) setCourseLoading(false);
+      }
     })();
     return () => {
       alive = false;
       setFormData(initialFormData);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hootId]);
+  }, [recordId]);
 
   /* -------------------------- Fetch Instructors DB ------------------------ */
   useEffect(() => {
@@ -86,7 +173,7 @@ const CourseForm = (props) => {
 
         // Preserve previously selected IDs that might not be in the current list (archived)
         const selectedIds = new Set((formData.instructors || []).map(String));
-        const knownIds = new Set(list.map((i) => i.id));
+        const knownIds = new Set(list.map((i) => String(i.id)));
         const missing = [...selectedIds].filter((id) => !knownIds.has(id));
         const merged = [
           ...list,
@@ -105,7 +192,7 @@ const CourseForm = (props) => {
     };
     // re-run when edit target or selection changes materially
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hootId, formData.instructors.length]);
+  }, [recordId, formData.instructors.length]);
 
   /* ------------------------ Close popovers on click ----------------------- */
   useEffect(() => {
@@ -117,7 +204,7 @@ const CourseForm = (props) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  /* -------------------------------- Helpers ------------------------------- */
+  /* -------------------------------- Handlers ------------------------------ */
   const handleChange = (evt) => {
     const { name, value } = evt.target;
     setFormData((s) => ({ ...s, [name]: value }));
@@ -166,22 +253,6 @@ const CourseForm = (props) => {
     });
   };
 
-  const toNumber = (v) => {
-    const n = parseFloat(String(v ?? "").replace(/,/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  const diffHours = (startHHMM, endHHMM) => {
-    if (!startHHMM || !endHHMM) return 0;
-    const [sh, sm] = startHHMM.split(":").map((x) => parseInt(x, 10));
-    const [eh, em] = endHHMM.split(":").map((x) => parseInt(x, 10));
-    if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
-    let start = sh * 60 + sm;
-    let end = eh * 60 + em;
-    if (end < start) end += 24 * 60; // crosses midnight
-    return (end - start) / 60;
-  };
-
   /* ------------------------- Generate Dates & Times ----------------------- */
   const regenerateCourseDatesTimes = () => {
     const { start_date, end_date, daysOfWeek, range_start_time, range_end_time } = formData;
@@ -197,8 +268,8 @@ const CourseForm = (props) => {
       if (daysOfWeek.includes(d.getDay())) {
         dates.push({
           date: d.toISOString().slice(0, 10),
-          start_time: range_start_time || "16:00",
-          end_time: range_end_time || "18:00",
+          start_time: toHHMM(range_start_time || "16:00", "16:00"),
+          end_time: toHHMM(range_end_time || "18:00", "18:00"),
         });
       }
       d.setDate(d.getDate() + 1);
@@ -207,6 +278,11 @@ const CourseForm = (props) => {
   };
 
   useEffect(() => {
+    // Skip the very first run after hydration to preserve saved per-session times
+    if (skipNextGen) {
+      setSkipNextGen(false);
+      return;
+    }
     regenerateCourseDatesTimes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -252,8 +328,33 @@ const CourseForm = (props) => {
   /* --------------------------------- Submit -------------------------------- */
   const handleSubmit = (evt) => {
     evt.preventDefault();
-    const payload = { ...formData };
-    if (hootId) props?.handleUpdateHoot?.(hootId, payload);
+
+    // Clean + coerce values before submit
+    const payload = {
+      ...formData,
+      start_date: toDateOnly(formData.start_date),
+      end_date: toDateOnly(formData.end_date),
+      range_start_time: toHHMM(formData.range_start_time || "16:00", "16:00"),
+      range_end_time: toHHMM(formData.range_end_time || "18:00", "18:00"),
+      daysOfWeek: [...(formData.daysOfWeek || [])].sort((a, b) => a - b),
+      instructors: [...(formData.instructors || [])].map(String),
+      instructorRates: Object.fromEntries(
+        Object.entries(formData.instructorRates || {}).map(([k, v]) => [String(k), toNumber(v)])
+      ),
+      cost: toNumber(formData.cost),
+      students: Math.max(0, Math.floor(toNumber(formData.students))),
+      materialsCost: toNumber(formData.materialsCost),
+      courseDatesTimes: (formData.courseDatesTimes || [])
+        .map((x) => ({
+          date: toDateOnly(x.date),
+          start_time: toHHMM(x.start_time, "16:00"),
+          end_time: toHHMM(x.end_time, "18:00"),
+        }))
+        .filter((x) => x.date)
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)),
+    };
+
+    if (recordId) props?.handleUpdateHoot?.(recordId, payload);
     else props?.handleAddHoot?.(payload);
   };
 
@@ -261,7 +362,11 @@ const CourseForm = (props) => {
   return (
     <main className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">{hootId ? "Edit Course" : "New Course"}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{recordId ? "Edit Course" : "New Course"}</h1>
+
+        {courseErr && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{courseErr}</div>
+        )}
 
         {/* Core Info */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -277,6 +382,7 @@ const CourseForm = (props) => {
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
               placeholder="Enter a clear, concise title"
+              disabled={courseLoading}
             />
           </div>
 
@@ -291,6 +397,7 @@ const CourseForm = (props) => {
               value={formData.start_date || ""}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+              disabled={courseLoading}
             />
           </div>
           <div>
@@ -303,6 +410,7 @@ const CourseForm = (props) => {
               value={formData.end_date || ""}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+              disabled={courseLoading}
             />
           </div>
 
@@ -317,6 +425,7 @@ const CourseForm = (props) => {
               value={formData.range_start_time || "16:00"}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+              disabled={courseLoading}
             />
           </div>
           <div>
@@ -329,6 +438,7 @@ const CourseForm = (props) => {
               value={formData.range_end_time || "18:00"}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+              disabled={courseLoading}
             />
           </div>
 
@@ -338,7 +448,8 @@ const CourseForm = (props) => {
             <button
               type="button"
               onClick={() => setDaysOpen((o) => !o)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-left hover:border-gray-400 focus:ring-2 focus:ring-green-600"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-left hover:border-gray-400 focus:ring-2 focus:ring-green-600 disabled:opacity-60"
+              disabled={courseLoading}
             >
               <span className="text-gray-800">
                 {formData.daysOfWeek?.length ? formData.daysOfWeek.map((i) => days[i]).join(", ") : "Select days"}
@@ -364,7 +475,7 @@ const CourseForm = (props) => {
           {/* Financials */}
           <div>
             <label htmlFor="cost-input" className="block text-sm font-medium text-gray-700 mb-1">
-              Course Cost (Per Student / Course)
+              Course Fees (/ Student / Course)
             </label>
             <input
               required
@@ -377,6 +488,7 @@ const CourseForm = (props) => {
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
               placeholder="e.g., 150"
+              disabled={courseLoading}
             />
           </div>
 
@@ -394,6 +506,7 @@ const CourseForm = (props) => {
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
               placeholder="e.g., 20"
+              disabled={courseLoading}
             />
           </div>
 
@@ -409,6 +522,7 @@ const CourseForm = (props) => {
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
               placeholder="e.g., 50"
+              disabled={courseLoading}
             />
           </div>
 
@@ -422,6 +536,7 @@ const CourseForm = (props) => {
               value={formData.location}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-green-600"
+              disabled={courseLoading}
             >
               <option value="News">Location 1</option>
               <option value="Games">Location 2</option>
@@ -439,7 +554,7 @@ const CourseForm = (props) => {
               type="button"
               onClick={() => setInstructorsOpen((o) => !o)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-left hover:border-gray-400 focus:ring-2 focus:ring-green-600 disabled:opacity-60"
-              disabled={insLoading}
+              disabled={insLoading || courseLoading}
               title={insErr || ""}
             >
               <span className="text-gray-800">
@@ -447,7 +562,7 @@ const CourseForm = (props) => {
                   ? "Loading…"
                   : formData.instructors?.length
                   ? formData.instructors
-                      .map((id) => instructors.find((i) => i.id === id)?.name || id)
+                      .map((id) => instructors.find((i) => String(i.id) === String(id))?.name || id)
                       .join(", ")
                   : "Select instructors"}
               </span>
@@ -506,6 +621,7 @@ const CourseForm = (props) => {
             rows={5}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
             placeholder="Add description…"
+            disabled={courseLoading}
           />
         </div>
 
@@ -523,7 +639,7 @@ const CourseForm = (props) => {
                 </thead>
                 <tbody>
                   {formData.instructors.map((id) => {
-                    const ins = instructors.find((i) => i.id === id);
+                    const ins = instructors.find((i) => String(i.id) === String(id));
                     return (
                       <tr key={id} className="border-t">
                         <td className="px-4 py-2">{ins?.name || id}</td>
@@ -725,10 +841,18 @@ const CourseForm = (props) => {
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-3">
-          <button type="button" className="rounded-xl border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50" onClick={() => window.history.back()}>
+          <button
+            type="button"
+            className="rounded-xl border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+            onClick={() => window.history.back()}
+          >
             Cancel
           </button>
-          <button type="submit" className="rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700">
+          <button
+            type="submit"
+            className="rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-60"
+            disabled={courseLoading}
+          >
             Submit
           </button>
         </div>

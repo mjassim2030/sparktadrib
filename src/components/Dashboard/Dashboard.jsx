@@ -11,6 +11,8 @@ import {
   TrendingUp,
   Clock,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -280,7 +282,7 @@ const Dashboard = () => {
     };
   }, [courses, instructors, rateByInstructorId]);
 
-  /* --------------------- Upcoming Courses (next 10 sessions) -------------------- */
+  /* --------------------- Occurrence enumeration & views --------------------- */
 
   const enumerateOccurrences = (course) => {
     const occurrences = [];
@@ -332,8 +334,9 @@ const Dashboard = () => {
         while (d <= end) {
           const dow = d.getDay();
           if (daysOfWeek.includes(dow)) {
-            const s = parseTimeOnDate(d.toISOString().slice(0, 10), range_start_time);
-            const e = parseTimeOnDate(d.toISOString().slice(0, 10), range_end_time);
+            const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+            const s = parseTimeOnDate(iso, range_start_time);
+            const e = parseTimeOnDate(iso, range_end_time);
             if (s && e) {
               occurrences.push({
                 start: s,
@@ -372,18 +375,27 @@ const Dashboard = () => {
   const fmtTime = (d) =>
     new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(d);
 
-  const upcoming = useMemo(() => {
-    const now = Date.now();
-    const all = [];
+  // All events (for calendar)
+  const allEvents = useMemo(() => {
+    const out = [];
     for (const c of courses) {
       const occ = enumerateOccurrences(c);
       for (const o of occ) {
-        if (o.start && o.start.getTime() >= now) all.push(o);
+        if (o.start) out.push(o);
       }
     }
-    all.sort((a, b) => a.start - b.start);
-    return all.slice(0, 10);
+    // stable order helps with React keys
+    out.sort((a, b) => a.start - b.start);
+    return out;
   }, [courses]);
+
+  // Upcoming (top 10 for mobile cards + count)
+  const upcoming = useMemo(() => {
+    const now = Date.now();
+    const fut = allEvents.filter((e) => e.start && e.start.getTime() >= now);
+    fut.sort((a, b) => a.start - b.start);
+    return fut.slice(0, 10);
+  }, [allEvents]);
 
   /* --------------------------------- UI ----------------------------------- */
 
@@ -418,7 +430,7 @@ const Dashboard = () => {
         <Card title="Total Hours Taught" value={metrics.totalHours.toFixed(1)} Icon={Clock} />
       </div>
 
-      {/* Upcoming Courses */}
+      {/* Upcoming / Calendar */}
       <section className="mt-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -431,43 +443,51 @@ const Dashboard = () => {
         {upcoming.length === 0 ? (
           <p className="p-4 text-sm text-slate-500">No upcoming sessions.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Course</th>
-                  <th className="px-4 py-3">Instructors</th>
-                  <th className="px-4 py-3">Location</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {upcoming.map((u, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 whitespace-nowrap">{fmtDate(u.start)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+          <>
+            {/* Mobile: cards */}
+            <div className="md:hidden p-4 grid gap-4">
+              {upcoming.map((u, idx) => (
+                <article
+                  key={idx}
+                  className="rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow transition"
+                >
+                  <div className="flex items-start justify-between">
+                    {u.courseId ? (
+                      <Link
+                        to={`/courses/${u.courseId}`}
+                        className="font-medium text-slate-900 hover:text-blue-800"
+                      >
+                        {u.title}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-slate-900">{u.title}</span>
+                    )}
+                    <span className="ml-4 shrink-0 text-xs text-slate-500">
+                      {fmtDate(u.start)}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 space-y-1 text-sm text-slate-700">
+                    <div>
+                      <span className="text-slate-500">Time: </span>
                       {fmtTime(u.start)} – {fmtTime(u.end)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {u.courseId ? (
-                        <Link
-                          to={`/hoots/${u.courseId}`}
-                          className="font-medium text-blue-700 hover:text-blue-900"
-                        >
-                          {u.title}
-                        </Link>
-                      ) : (
-                        <span className="font-medium text-slate-800">{u.title}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{renderInstructorNames(u.instructors)}</td>
-                    <td className="px-4 py-3">{u.location || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Instructors: </span>
+                      {renderInstructorNames(u.instructors)}
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Location: </span>
+                      {u.location || '—'}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {/* Desktop: month calendar */}
+            <DesktopMonthCalendar events={allEvents} renderInstructorNames={renderInstructorNames} />
+          </>
         )}
       </section>
 
@@ -477,6 +497,207 @@ const Dashboard = () => {
     </main>
   );
 };
+
+/* ------------------------- Desktop Calendar Component ------------------------- */
+
+function DesktopMonthCalendar({ events = [], renderInstructorNames }) {
+  const [cursor, setCursor] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+
+  const monthLabel = useMemo(
+    () =>
+      cursor.toLocaleDateString(undefined, {
+        month: 'long',
+        year: 'numeric',
+      }),
+    [cursor]
+  );
+
+  const { days, firstOfMonth } = useMemo(() => {
+    const first = startOfMonth(cursor);
+    const start = startOfWeek(first);
+    const end = endOfWeek(endOfMonth(cursor));
+    const out = [];
+    for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+      out.push(new Date(d));
+    }
+    return { days: out, firstOfMonth: first };
+  }, [cursor]);
+
+  // Group by local day key to avoid timezone drift
+  const byDay = useMemo(() => {
+    const map = new Map();
+    for (const u of events) {
+      if (!u?.start) continue;
+      const k = dayKey(u.start);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(u);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => new Date(a.start) - new Date(b.start));
+    }
+    return map;
+  }, [events]);
+
+  const fmtTime = (d) =>
+    new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(d);
+
+  return (
+    <div className="hidden md:block">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCursor(addMonths(cursor, -1))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"
+            aria-label="Previous month"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="text-sm font-medium text-slate-700">{monthLabel}</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCursor(startOfMonth(new Date()))}
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={() => setCursor(addMonths(cursor, 1))}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 hover:bg-slate-50"
+            aria-label="Next month"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 gap-px bg-slate-200">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+          <div key={d} className="bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Month grid */}
+      <div className="grid grid-cols-7 gap-px bg-slate-200">
+        {days.map((day, i) => {
+          const inMonth = day.getMonth() === firstOfMonth.getMonth();
+          const isToday = isSameDay(day, new Date());
+          const eventsForDay = byDay.get(dayKey(day)) || [];
+
+          return (
+            <div
+              key={i}
+              className={`min-h-[120px] bg-white p-2 align-top ${!inMonth ? 'bg-slate-50 text-slate-400' : ''}`}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className={`text-xs ${inMonth ? 'text-slate-600' : 'text-slate-400'}`}>
+                  {day.getDate()}
+                </span>
+                {isToday && (
+                  <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-medium text-white">
+                    Today
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                {eventsForDay.length === 0 ? (
+                  <div className="text-[11px] text-slate-400 italic">—</div>
+                ) : (
+                  eventsForDay.slice(0, 4).map((u, idx) => {
+                    const chip = (
+                      <div
+                        className="w-full truncate rounded-md border border-blue-200 bg-blue-50 px-2 py-1 text-[11px] leading-4 text-blue-800 hover:bg-blue-100"
+                        title={`${u.title} • ${fmtTime(u.start)}–${fmtTime(u.end)} • ${renderInstructorNames(u.instructors)}`}
+                      >
+                        <span className="font-medium">{fmtTime(u.start)}</span>{' '}
+                        <span className="mx-1">•</span>
+                        <span className="truncate inline-block align-top">{u.title}</span>
+                      </div>
+                    );
+                    return (
+                      <div key={idx}>
+                        {u.courseId ? (
+                          <Link to={`/courses/${u.courseId}`} className="block">
+                            {chip}
+                          </Link>
+                        ) : (
+                          chip
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+                {eventsForDay.length > 4 && (
+                  <div className="text-[11px] text-slate-500">+{eventsForDay.length - 4} more</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------- Date helpers ------------------------------- */
+
+function startOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+function endOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+function startOfWeek(d) {
+  const x = new Date(d);
+  const day = x.getDay(); // 0 Sun
+  x.setDate(x.getDate() - day);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function endOfWeek(d) {
+  const x = new Date(d);
+  const day = x.getDay();
+  x.setDate(x.getDate() + (6 - day));
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function addMonths(d, n) {
+  const x = new Date(d);
+  x.setMonth(x.getMonth() + n);
+  return startOfMonth(x);
+}
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+function dayKey(d) {
+  // Local YYYY-MM-DD (avoids timezone drift vs ISO)
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
 
 /* ------------------------------- UI Pieces ------------------------------- */
 
@@ -496,7 +717,7 @@ const MoneyCard = ({ title, value, Icon, positiveColor = false }) => (
       <p className="text-sm font-medium text-slate-600">{title}</p>
       {Icon ? <Icon className="h-5 w-5 text-slate-400" /> : null}
     </div>
-    <p className={`mt-2 text-3xl font-extrabold ${positiveColor ? 'text-emerald-700' : 'text-slate-900'}`}>
+    <p className={`mt-2 text-3xl font-extrabold ${positiveColor ? 'text-green-700' : 'text-red-900'}`}>
       {formatCurrency(value)}
     </p>
   </div>

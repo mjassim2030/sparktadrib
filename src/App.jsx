@@ -16,13 +16,20 @@ import InstructorList from './components/InstructorList/InstructorList';
 import InstructorDetails from './components/InstructorDetails/InstructorDetails';
 
 const AppLayout = () => (
-  <div className="flex min-h-screen bg-gray-100">
+  // Lock viewport height and disable page-level scroll
+  <div className="h-dvh overflow-hidden bg-gray-100">
     <NavBar />
-    <main className="flex-1 min-w-0 p-6">
-      <Outlet />
-    </main>
+
+    {/* Offset for mobile fixed header and desktop fixed sidebar */}
+    <div className="h-full pt-14 md:pt-0 md:pl-64">
+      {/* Only this area scrolls */}
+      <main className="h-full overflow-y-auto p-6">
+        <Outlet />
+      </main>
+    </div>
   </div>
 );
+
 
 // Simple auth gate to avoid “no routes matched” during initial load
 const RequireAuth = ({ user }) => (user ? <Outlet /> : <Navigate to="/sign-in" replace />);
