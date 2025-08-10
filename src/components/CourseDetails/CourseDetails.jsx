@@ -13,7 +13,7 @@ import {
   List as ListIcon,
   Printer,
 } from "lucide-react";
-import * as courseService from "../../services/hootService"; // expects show(id)
+import * as courseService from "../../services/courseService"; // expects show(id)
 import * as instructorService from "../../services/instructorService";
 
 // NEW: PDF libs

@@ -1,7 +1,7 @@
 // src/components/HootForm/HootForm.jsx
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router";
-import * as hootService from "../../services/hootService";
+import * as hootService from "../../services/courseService";
 import * as instructorService from "../../services/instructorService";
 import { List, Grid } from "lucide-react";
 
@@ -26,7 +26,7 @@ const initialFormData = {
 };
 
 /* ------------------------------- HootForm --------------------------------- */
-const HootForm = (props) => {
+const CourseForm = (props) => {
   const { hootId } = useParams();
 
   // UI state
@@ -737,4 +737,4 @@ const HootForm = (props) => {
   );
 };
 
-export default HootForm;
+export default CourseForm;

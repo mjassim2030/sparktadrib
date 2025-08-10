@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useContext } from 'react';
 import { Link } from 'react-router';
 import { UserContext } from '../../contexts/UserContext';
 import * as instructorService from '../../services/instructorService';
-import * as hootService from '../../services/hootService';
+import * as hootService from '../../services/courseService';
 import {
   Users,
   BookOpen,

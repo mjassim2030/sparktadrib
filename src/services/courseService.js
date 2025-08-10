@@ -1,4 +1,4 @@
-// src/services/hootService.js
+// src/services/courseService.js
 
 const API_BASE =
   `${import.meta.env.VITE_BACK_END_SERVER_URL}`.replace(/\/+$/, '') + '/courses';

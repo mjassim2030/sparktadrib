@@ -8,9 +8,9 @@ import Landing from './components/Landing/Landing';
 import Dashboard from './components/Dashboard/Dashboard';
 import { UserContext } from './contexts/UserContext';
 import CourseGrid from './components/CourseGrid/CourseGrid';
-import * as hootService from './services/hootService';
+import * as CourseService from './services/courseService';
 import CourseDetails from './components/CourseDetails/CourseDetails';
-import HootForm from './components/HootForm/HootForm';
+import CourseForm from './components/CourseForm/CourseForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
 import InstructorList from './components/InstructorList/InstructorList';
 import InstructorDetails from './components/InstructorDetails/InstructorDetails';
@@ -70,9 +70,9 @@ const App = () => {
         <Route element={<AppLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="courses" element={<CourseGrid hoots={hoots} />} />
-          <Route path="courses/new" element={<HootForm handleAddHoot={handleAddHoot} />} />
+          <Route path="courses/new" element={<CourseForm handleAddHoot={handleAddHoot} />} />
           <Route path="courses/:id" element={<CourseDetails />} />
-          <Route path="courses/:id/edit" element={<HootForm handleUpdateHoot={handleUpdateHoot} />} />
+          <Route path="courses/:id/edit" element={<CourseForm handleUpdateHoot={handleUpdateHoot} />} />
           <Route path="instructors/new" element={<InstructorForm />} />
           <Route path="/instructors" element={<InstructorList />} />
           <Route path="/instructors/:id" element={<InstructorDetails />} />
