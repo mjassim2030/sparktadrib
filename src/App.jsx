@@ -8,7 +8,7 @@ import Landing from './components/Landing/Landing';
 import Dashboard from './components/Dashboard/Dashboard';
 import { UserContext } from './contexts/UserContext';
 import CourseGrid from './components/CourseGrid/CourseGrid';
-import * as CourseService from './services/courseService';
+import * as courseService from './services/courseService';
 import CourseDetails from './components/CourseDetails/CourseDetails';
 import CourseForm from './components/CourseForm/CourseForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
@@ -34,26 +34,26 @@ const App = () => {
 
   useEffect(() => {
     const fetchAllHoots = async () => {
-      const res = await hootService.index();
+      const res = await courseService.index();
       setHoots(Array.isArray(res?.items) ? res.items : Array.isArray(res) ? res : []);
     };
     if (user) fetchAllHoots();
   }, [user]);
 
   const handleAddHoot = async (hootFormData) => {
-    const newHoot = await hootService.create(hootFormData);
+    const newHoot = await courseService.create(hootFormData);
     setHoots((prev) => [newHoot, ...(Array.isArray(prev) ? prev : [])]);
     navigate('/courses');
   };
 
   const handleUpdateHoot = async (hootId, hootFormData) => {
-    const updatedHoot = await hootService.update(hootId, hootFormData);
+    const updatedHoot = await courseService.update(hootId, hootFormData);
     setHoots((prev) => prev.map((h) => (h._id === hootId ? updatedHoot : h)));
     navigate(`/courses/${hootId}`);
   };
 
   const handleDeleteHoot = async (hootId) => {
-    const deletedHoot = await hootService.deleteHoot(hootId);
+    const deletedHoot = await courseService.deleteHoot(hootId);
     setHoots((prev) => prev.filter((h) => h._id !== deletedHoot._id));
     navigate('/courses');
   };

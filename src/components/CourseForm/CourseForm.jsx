@@ -1,7 +1,7 @@
 // src/components/HootForm/HootForm.jsx
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router";
-import * as hootService from "../../services/courseService";
+import * as courseService from "../../services/courseService";
 import * as instructorService from "../../services/instructorService";
 import { List, Grid } from "lucide-react";
 
@@ -51,7 +51,7 @@ const CourseForm = (props) => {
     let alive = true;
     (async () => {
       if (!hootId) return;
-      const hootData = await hootService.show(hootId);
+      const hootData = await courseService.show(hootId);
       if (!alive) return;
       setFormData((s) => ({
         ...initialFormData,

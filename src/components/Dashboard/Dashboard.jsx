@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useContext } from 'react';
 import { Link } from 'react-router';
 import { UserContext } from '../../contexts/UserContext';
 import * as instructorService from '../../services/instructorService';
-import * as hootService from '../../services/courseService';
+import * as courseService from '../../services/courseService';
 import {
   Users,
   BookOpen,
@@ -27,7 +27,7 @@ const Dashboard = () => {
         setLoading(true);
         const [insRes, courseRes] = await Promise.all([
           instructorService.index(),
-          hootService.index(),
+          courseService.index(),
         ]);
         setInstructors(insRes || []);
         setCourses(courseRes || []);
