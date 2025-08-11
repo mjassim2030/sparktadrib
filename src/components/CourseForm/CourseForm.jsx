@@ -3,6 +3,7 @@ import { useParams } from "react-router"; // keep as in your project; switch to 
 import * as courseService from "../../services/courseService";
 import * as instructorService from "../../services/instructorService";
 import { List, Grid } from "lucide-react";
+import LocationInput from "../Location/LocationInput";
 
 /* --------------------------------- Config --------------------------------- */
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -10,7 +11,10 @@ const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const initialFormData = {
   title: "",
   description: "",
-  location: "News",
+  location: "",
+  location_lat: null,
+  location_lon: null,
+  location_place_id: "",
   start_date: "",
   end_date: "",
   courseDatesTimes: [], // [{date:'YYYY-MM-DD', start_time:'HH:MM', end_time:'HH:MM'}]
@@ -128,13 +132,13 @@ const CourseForm = (props) => {
           daysOfWeek: Array.isArray(raw?.daysOfWeek) ? [...raw.daysOfWeek].sort((a, b) => a - b) : [],
           courseDatesTimes: Array.isArray(raw?.courseDatesTimes)
             ? raw.courseDatesTimes
-                .map((x) => ({
-                  date: toDateOnly(x?.date),
-                  start_time: toHHMM(x?.start_time, "16:00"),
-                  end_time: toHHMM(x?.end_time, "18:00"),
-                }))
-                .filter((x) => x.date)
-                .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+              .map((x) => ({
+                date: toDateOnly(x?.date),
+                start_time: toHHMM(x?.start_time, "16:00"),
+                end_time: toHHMM(x?.end_time, "18:00"),
+              }))
+              .filter((x) => x.date)
+              .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
             : [],
           instructors: (raw?.instructors || []).map((x) =>
             typeof x === "string" ? x : String(x?._id || x?.id)
@@ -169,18 +173,23 @@ const CourseForm = (props) => {
         setInsLoading(true);
         setInsErr("");
         const list = await instructorService.index(); // [{id, name, email}]
+        const normalized = (list || []).map(i => ({
+          id: String(i.id ?? i._id),                // <<< normalize to string id
+          name: i.name || i.email || String(i.id ?? i._id),
+          email: i.email || "",
+        }));
+
         if (!alive) return;
 
-        // Preserve previously selected IDs that might not be in the current list (archived)
+        // preserve selected “archived” ids (same as you had)
         const selectedIds = new Set((formData.instructors || []).map(String));
-        const knownIds = new Set(list.map((i) => String(i.id)));
-        const missing = [...selectedIds].filter((id) => !knownIds.has(id));
-        const merged = [
-          ...list,
-          ...missing.map((id) => ({ id, name: `(archived) ${id}`, email: "" })),
-        ];
+        const knownIds = new Set(normalized.map(i => i.id));
+        const missing = [...selectedIds].filter(id => !knownIds.has(id));
 
-        setInstructors(merged);
+        setInstructors([
+          ...normalized,
+          ...missing.map(id => ({ id, name: `(archived) ${id}`, email: "" })),
+        ]);
       } catch (e) {
         if (alive) setInsErr(e?.message || "Failed to load instructors");
       } finally {
@@ -332,6 +341,11 @@ const CourseForm = (props) => {
     // Clean + coerce values before submit
     const payload = {
       ...formData,
+      // keep label plus geo fields if present
+      location: formData.location?.trim() || "",
+      location_lat: formData.location_lat ?? null,
+      location_lon: formData.location_lon ?? null,
+      location_place_id: formData.location_place_id || "",
       start_date: toDateOnly(formData.start_date),
       end_date: toDateOnly(formData.end_date),
       range_start_time: toHHMM(formData.range_start_time || "16:00", "16:00"),
@@ -526,25 +540,25 @@ const CourseForm = (props) => {
             />
           </div>
 
-          {/* Location */}
-          <div>
-            <label htmlFor="location-input" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-            <select
-              required
-              name="location"
-              id="location-input"
+          {/* Location (Worldwide) */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <LocationInput
               value={formData.location}
-              onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:ring-2 focus:ring-green-600"
               disabled={courseLoading}
-            >
-              <option value="News">Location 1</option>
-              <option value="Games">Location 2</option>
-              <option value="Music">Location 3</option>
-              <option value="Movies">Location 4</option>
-              <option value="Sports">Location 5</option>
-              <option value="Television">Location 6</option>
-            </select>
+              onChange={(loc) => {
+                setFormData((s) => ({
+                  ...s,
+                  location: loc?.label || "",
+                  location_lat: Number.isFinite(loc?.lat) ? loc.lat : null,
+                  location_lon: Number.isFinite(loc?.lon) ? loc.lon : null,
+                  location_place_id: loc?.id || "",
+                }));
+              }}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Search any country, city, venue, institute, or POI worldwide.
+            </p>
           </div>
 
           {/* Instructors (DB) */}
@@ -561,48 +575,61 @@ const CourseForm = (props) => {
                 {insLoading
                   ? "Loading…"
                   : formData.instructors?.length
-                  ? formData.instructors
+                    ? formData.instructors
                       .map((id) => instructors.find((i) => String(i.id) === String(id))?.name || id)
                       .join(", ")
-                  : "Select instructors"}
+                    : "Select instructors"}
               </span>
             </button>
 
             {instructorsOpen && !insLoading && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 shadow-lg max-h-60 overflow-auto">
+              <div
+                className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 shadow-lg max-h-60 overflow-auto"
+              >
                 {insErr && (
                   <div className="mb-2 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
                     {insErr}
                   </div>
                 )}
+
                 {instructors.length === 0 && !insErr ? (
                   <div className="p-2 text-sm text-gray-600">No instructors found.</div>
                 ) : (
-                  instructors.map((ins) => (
-                    <label key={ins.id} className="flex items-center justify-between gap-3 py-1 cursor-pointer">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          className="rounded border-gray-300 text-gray-900 focus:ring-green-600"
-                          checked={formData.instructors?.includes(ins.id) || false}
-                          onChange={() => toggleInstructor(ins.id)}
-                        />
-                        <span className="text-gray-800">{ins.name}</span>
-                      </div>
-                      {formData.instructors?.includes(ins.id) && (
-                        <input
-                          type="number"
-                          step="1"
-                          inputMode="decimal"
-                          placeholder="Pay/hr"
-                          className="w-28 h-9 rounded-md border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-green-600"
-                          value={formData.instructorRates?.[ins.id] ?? ""}
-                          onChange={(e) => setInstructorRate(ins.id, e.target.value)}
-                          title="Hourly pay"
-                        />
-                      )}
-                    </label>
-                  ))
+                  instructors.map((ins, index) => {
+                    const insId = String(ins.id); // ensure string
+                    const isChecked = (formData.instructors || []).map(String).includes(insId);
+
+                    return (
+                      <label
+                        key={`${insId}-${index}`}
+                        className="flex items-center justify-between gap-3 py-1 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-gray-900 focus:ring-green-600"
+                            checked={isChecked}
+                            onChange={() => toggleInstructor(insId)}
+                            onClick={(e) => e.stopPropagation()} // defensive: avoid any outside click handlers
+                          />
+                          <span className="text-gray-800">{ins.name}</span>
+                        </div>
+
+                        {isChecked && (
+                          <input
+                            type="number"
+                            step="1"
+                            inputMode="decimal"
+                            placeholder="Pay/hr"
+                            className="w-28 h-9 rounded-md border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-green-600"
+                            value={formData.instructorRates?.[insId] ?? ""}
+                            onChange={(e) => setInstructorRate(insId, e.target.value)}
+                            title="Hourly pay"
+                          />
+                        )}
+                      </label>
+                    );
+                  })
                 )}
               </div>
             )}

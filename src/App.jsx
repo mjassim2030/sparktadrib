@@ -14,7 +14,13 @@ import CourseForm from './components/CourseForm/CourseForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
 import InstructorList from './components/InstructorList/InstructorList';
 import InstructorDetails from './components/InstructorDetails/InstructorDetails';
+
 import MyCourses from "./components/Teaching/MyCourses";
+import MySchedule from "./components/Teaching/MySchedule";
+
+// Ensure the import path/casing matches your file location:
+import SetPassword from './components/auth/SetPassword';
+import Subscriptions from './components/Billing/Subscriptions';
 
 const AppLayout = () => (
   // Lock viewport height and disable page-level scroll
@@ -30,7 +36,6 @@ const AppLayout = () => (
     </div>
   </div>
 );
-
 
 // Simple auth gate to avoid “no routes matched” during initial load
 const RequireAuth = ({ user }) => (user ? <Outlet /> : <Navigate to="/sign-in" replace />);
@@ -72,6 +77,8 @@ const App = () => {
       <Route path="/" element={<Landing />} />
       <Route path="/sign-up" element={<SignUpForm />} />
       <Route path="/sign-in" element={<SignInForm />} />
+      {/* ✅ Make set-password public so invite links work without auth */}
+      <Route path="/set-password" element={<SetPassword />} />
 
       {/* Private routes (always declared), gated by auth */}
       <Route element={<RequireAuth user={user} />}>
@@ -84,9 +91,11 @@ const App = () => {
           <Route path="instructors/new" element={<InstructorForm />} />
           <Route path="/instructors" element={<InstructorList />} />
           <Route path="/instructors/:id" element={<InstructorDetails />} />
+          <Route path="/subscriptions" element={<Subscriptions />} />
 
           {/* Instructor Screens */}
           <Route path="/teaching" element={<MyCourses />} />
+          <Route path="/schedule" element={<MySchedule />} />
 
         </Route>
       </Route>

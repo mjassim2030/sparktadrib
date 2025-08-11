@@ -435,7 +435,7 @@ const Dashboard = () => {
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             <CalendarDays className="h-5 w-5 text-slate-500" />
-            Upcoming Courses
+            Upcoming Sessions
           </h2>
           <span className="text-sm text-slate-500">{upcoming.length} upcoming</span>
         </div>

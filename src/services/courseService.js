@@ -9,21 +9,30 @@ const authHeader = () => {
 };
 
 async function fetchJson(url, options = {}) {
-  const res = await fetch(url, options);
-  // Handle 204 No Content (e.g., DELETE)
-  if (res.status === 204) return null;
+  // Merge headers so Authorization is always included
+  
+  const headers = {
+    Accept: 'application/json',
+    ...authHeader(),
+    ...(options.headers || {}),
+  };
 
-  let data;
+  const res = await fetch(url, { ...options, headers });
+
+  if (res.status === 204) return null; // No Content (e.g., DELETE)
+
+  let data = null;
   try {
     data = await res.json();
   } catch {
-    // Non-JSON or empty body
-    data = null;
+    // Non-JSON or empty body — keep data as null
   }
+
   if (!res.ok) {
-    const msg = data?.error || data?.err || res.statusText || 'Request failed';
+    const msg = data?.error || data?.err || data?.message || `${res.status} ${res.statusText}`;
     throw new Error(msg);
   }
+
   return data;
 }
 

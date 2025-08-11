@@ -127,7 +127,7 @@ const InstructorForm = ({ instructor = null, onSuccess }) => {
       setLinkErr("");
       setLinkOk(false);
       const updated = await instructorService.linkUser(doc._id, { email: linkEmail.trim() });
-      setDoc(updated);
+      setDoc(updated);  
       setLinkOk(true);
       setTimeout(() => setLinkOk(false), 2000);
     } catch (e) {

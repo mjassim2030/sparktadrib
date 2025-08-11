@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/components/CourseDetails/CourseDetails.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   CalendarDays,
@@ -12,15 +13,34 @@ import {
   Grid as GridIcon,
   List as ListIcon,
   Printer,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
 } from "lucide-react";
-import * as courseService from "../../services/courseService"; // expects show(id)
+import * as courseService from "../../services/courseService";
 import * as instructorService from "../../services/instructorService";
 
-// NEW: PDF libs
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const PLATFORM_NAME = "MyApp"; // <— change to your platform/brand
+const PLATFORM_NAME = "MyApp";
+
+/* ---------------- API base (attendance endpoints) ---------------- */
+const API_BASE =
+  import.meta.env.VITE_BACK_END_SERVER_URL?.replace(/\/+$/, "") || "";
+
+/* -------------------- Formatting helpers -------------------- */
+
+const isSameDay = (d) => {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return false;
+  const now = new Date();
+  return (
+    x.getFullYear() === now.getFullYear() &&
+    x.getMonth() === now.getMonth() &&
+    x.getDate() === now.getDate()
+  );
+};
 
 const fmtBHD = (n) =>
   new Intl.NumberFormat(undefined, {
@@ -48,8 +68,63 @@ const diffHours = (start, end) => {
   return (b - a) / 60;
 };
 
-const Stat = ({ label, value, hint }) => (
-  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+const pad2 = (n) => String(n).padStart(2, "0");
+const keyOf = (d) => {
+  const x = new Date(d);
+  if (Number.isNaN(x.getTime())) return "";
+  return `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+};
+const fmtTime = (hhmm) => {
+  if (!hhmm) return "";
+  const [h, m] = hhmm.split(":").map((v) => parseInt(v, 10));
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  const d = new Date();
+  d.setHours(h, m, 0, 0);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+/* ---------------- Attendance I/O with LS fallback ---------------- */
+const lsKey = (courseId) => `att:${courseId}`;
+
+async function loadAttendance(courseId, token, signal) {
+  try {
+    const r = await fetch(`${API_BASE}/courses/${courseId}/attendance`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    });
+    if (r.ok) return r.json(); // { [instructorId]: string[] }
+  } catch { }
+  try {
+    const raw = localStorage.getItem(lsKey(courseId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveAttendance(courseId, map, token) {
+  try {
+    const r = await fetch(`${API_BASE}/courses/${courseId}/attendance`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(map),
+    });
+    if (r.ok) return true;
+  } catch { }
+  try {
+    localStorage.setItem(lsKey(courseId), JSON.stringify(map || {}));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* ---------------- Small stat card ---------------- */
+const Stat = ({ label, value, hint, className = "" }) => (
+  <div className={`rounded-2xl border border-green-700/30 bg-white p-4 shadow-lg ${className}`}>
     <div className="text-xs text-gray-500">{label}</div>
     <div className="mt-1 text-xl font-semibold text-gray-900">{value}</div>
     {hint ? <div className="text-xs text-gray-500 mt-1">{hint}</div> : null}
@@ -58,25 +133,31 @@ const Stat = ({ label, value, hint }) => (
 
 const CourseDetails = () => {
   const { id } = useParams();
-  const [view, setView] = useState("list"); // "list" | "grid"
+  const [view, setView] = useState("list");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [insLookup, setInsLookup] = useState({});
-  // NEW: selected instructor for invoice
-  const [selectedInstructorId, setSelectedInstructorId] = useState("");
 
-  // get a stable instructor id whether item is string or object
+  // Attendance state: { [instructorId]: Set(sessionKey) }
+  const [attendance, setAttendance] = useState({});
+  const [expanded, setExpanded] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const skipNextSaveRef = useRef(true); // prevents saving right after initial hydration
+
   const insIdOf = (ins) =>
     typeof ins === "string" ? ins : String(ins?._id || ins?.id || "");
 
+  /* ---------------- Load course ---------------- */
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         setErr("");
-        const res = await courseService.show(id); // must return the course object
+        const res = await courseService.show(id);
         if (alive) setData(res);
       } catch (e) {
         if (alive) setErr(e?.message || "Failed to load course");
@@ -89,25 +170,36 @@ const CourseDetails = () => {
     };
   }, [id]);
 
-  // load instructor names for any ID-only items
+  /* ---------------- Load instructor names ---------------- */
   useEffect(() => {
     let alive = true;
     (async () => {
       const arr = Array.isArray(data?.instructors) ? data.instructors : [];
-      if (!arr.length) { if (alive) setInsLookup({}); return; }
+      if (!arr.length) {
+        if (alive) setInsLookup({});
+        return;
+      }
       try {
-        const list = await instructorService.index(); // [{id,name,email}]
-        // setInsLookup(Object.fromEntries(list.map(i => [String(i.id), i.name || i.email || i.id])));
+        const list = await instructorService.index();
         const map = Object.fromEntries(
           list.map((i) => [String(i.id), i.name || i.email || String(i.id)])
         );
         if (alive) setInsLookup(map);
-      } catch (_) {
-        // ignore; fallback will show IDs
-      }
+      } catch { }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [data?.instructors]);
+
+  /* ---------------- Computed metrics ---------------- */
+  const getRateFor = (instructorId) => {
+    const ir = data?.instructorRates;
+    if (!ir) return 0;
+    if (ir instanceof Map) return Number(ir.get(instructorId)) || 0;
+    if (typeof ir === "object") return Number(ir[instructorId]) || 0;
+    return 0;
+  };
 
   const computed = useMemo(() => {
     if (!data) return {};
@@ -148,59 +240,140 @@ const CourseDetails = () => {
     [data]
   );
 
-  const getRateFor = (instructorId) => {
-    const ir = data?.instructorRates;
-    if (!ir) return 0;
-    if (ir instanceof Map) return Number(ir.get(instructorId)) || 0;
-    if (typeof ir === "object") return Number(ir[instructorId]) || 0;
-    return 0;
+  const weekday = (d) => {
+    const x = new Date(d);
+    return Number.isNaN(x.getTime())
+      ? ""
+      : x.toLocaleDateString(undefined, { weekday: "short" });
   };
 
-  // NEW: Generate and open a printable invoice for the selected instructor
-  const handlePrintInvoice = async () => {
-    if (!selectedInstructorId) return;
-    const id = String(selectedInstructorId);
-    const ins = instructors.find((i) => insIdOf(i) === id);
-    let instructorLabel = (ins && (ins.name || ins.email)) || insLookup[id] || "";
+  /* ---------------- Session keys for attendance ---------------- */
+  const sessionKeys = useMemo(() => {
+    const list = Array.isArray(computed.sessions) ? computed.sessions : [];
+    return list.map((s, idx) => {
+      const key = keyOf(s?.date) || `idx-${idx}`;
+      return {
+        key,
+        idx,
+        dateLabel: `${weekday(s?.date)}, ${fmtDate(s?.date)}`,
+        timeLabel: `${fmtTime(s?.start_time)} – ${fmtTime(s?.end_time)}`,
+      };
+    });
+  }, [computed.sessions]);
 
-    if (!instructorLabel) {
-      try {
-        const one = await instructorService.show(id);
-        instructorLabel = one?.name || one?.email || id;
-      } catch { instructorLabel = id; }
+  // Hours per session, keyed by stable session key
+  const sessionHoursByKey = useMemo(() => {
+    const out = {};
+    const list = Array.isArray(computed.sessions) ? computed.sessions : [];
+    list.forEach((s, idx) => {
+      const key = keyOf(s?.date) || `idx-${idx}`;
+      out[key] = diffHours(s?.start_time, s?.end_time);
+    });
+    return out;
+  }, [computed.sessions]);
+
+  const attendedHoursFor = (insId) => {
+    const set = attendance[insId];
+    if (!set) return 0;
+    let sum = 0;
+    set.forEach((k) => {
+      sum += Number(sessionHoursByKey[k] || 0);
+    });
+    return sum;
+  };
+
+  const payFor = (insId) => {
+    const rate = getRateFor(insId) || 0;
+    const hours = attendedHoursFor(insId);
+    return { rate, hours, amount: rate * hours };
+  };
+
+  /* ---------------- Hydrate attendance ---------------- */
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!data?._id) return;
+      const token = localStorage.getItem("token") || "";
+      const map = await loadAttendance(data._id, token).catch(() => ({}));
+      if (!alive) return;
+      const sets = Object.fromEntries(
+        Object.entries(map || {}).map(([insId, arr]) => [insId, new Set(arr || [])])
+      );
+      // Skip saving right after initial load
+      skipNextSaveRef.current = true;
+      setAttendance(sets);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [data?._id]);
+
+  /* ---------------- Auto-save on any change ---------------- */
+  useEffect(() => {
+    if (!data?._id) return;
+    if (skipNextSaveRef.current) {
+      skipNextSaveRef.current = false;
+      return;
     }
+    let cancelled = false;
 
-    const rate = getRateFor(selectedInstructorId) || 0;
-    const hours = Number(computed.totalHours || 0);
+    (async () => {
+      setSaving(true);
+      setSaveMsg("");
+      const token = localStorage.getItem("token") || "";
+      const payload = Object.fromEntries(
+        Object.entries(attendance).map(([k, v]) => [k, Array.from(v || [])])
+      );
+      const ok = await saveAttendance(data._id, payload, token);
+      if (cancelled) return;
+      setSaving(false);
+      setSaveMsg(ok ? "Saved" : "Failed to save");
+      setTimeout(() => {
+        if (!cancelled) setSaveMsg("");
+      }, 1500);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attendance, data?._id]);
+
+  /* ---------------- Print invoice (per instructor) ---------------- */
+  const handlePrintInvoice = async (instructorId) => {
+    const idd = String(instructorId);
+    const ins = instructors.find((i) => insIdOf(i) === idd);
+    let instructorLabel = (ins && (ins.name || ins.email)) || insLookup[idd] || idd;
+
+    const rate = getRateFor(idd) || 0;
+    // Only attended sessions:
+    const presentKeys = attendance[idd] ? Array.from(attendance[idd]) : [];
+
+    const rows = (computed.sessions || [])
+      .map((s, idx) => {
+        const k = keyOf(s?.date) || `idx-${idx}`;
+        if (!presentKeys.includes(k)) return null;
+        const hrs = diffHours(s.start_time, s.end_time);
+        const amt = hrs * rate;
+        return [fmtDate(s.date), s.start_time, s.end_time, hrs.toFixed(2), fmtBHD(amt)];
+      })
+      .filter(Boolean);
+
+    const hours = presentKeys.reduce((sum, k) => sum + (sessionHoursByKey[k] || 0), 0);
     const amount = rate * hours;
 
-    // Build rows per session (for transparency)
-    const rows = (computed.sessions || []).map((s) => {
-      const hrs = diffHours(s.start_time, s.end_time);
-      const lineAmt = hrs * rate;
-      return [fmtDate(s.date), s.start_time, s.end_time, hrs.toFixed(2), fmtBHD(lineAmt)];
-    });
-
-    const invoiceNo = `INV-${String(id).slice(-6).toUpperCase()}-${new Date()
+    const invoiceNo = `INV-${String(idd).slice(-6).toUpperCase()}-${new Date()
       .toISOString()
       .slice(0, 10)
       .replace(/-/g, "")}`;
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-
-    // Header (top-left)
     doc.setFontSize(16);
     doc.text(PLATFORM_NAME, 40, 40);
-
     doc.setFontSize(10);
     doc.text(`Invoice #: ${invoiceNo}`, 40, 60);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 40, 75);
-
-    // Instructor name
     doc.setFontSize(12);
     doc.text(`Instructor: ${instructorLabel}`, 40, 110);
-
-    // Payment details table
     const startY = 130;
     autoTable(doc, {
       head: [["Date", "Start", "End", "Hours", "Line Amount"]],
@@ -210,10 +383,7 @@ const CourseDetails = () => {
       headStyles: { fillColor: [245, 245, 245] },
       theme: "grid",
     });
-
     const finalY = (doc.lastAutoTable && doc.lastAutoTable.finalY) || startY;
-
-    // Totals block (Rate, Hours, Total)
     autoTable(doc, {
       body: [
         ["Rate (per hour)", fmtBHD(rate)],
@@ -225,15 +395,37 @@ const CourseDetails = () => {
       columnStyles: { 0: { cellWidth: 200 }, 1: { halign: "right" } },
       theme: "plain",
     });
-
-    // Open & trigger print
     doc.autoPrint();
-    const blob = doc.output("blob");
     const url = doc.output("bloburl");
     const w = window.open(url, "_blank");
     if (!w) doc.save(`${invoiceNo}.pdf`);
   };
 
+  /* ---------------- Attendance interactions ---------------- */
+  const toggleExpand = (insId) =>
+    setExpanded((s) => ({ ...s, [insId]: !s[insId] }));
+
+  const markAll = (insId) => {
+    const keys = sessionKeys.map((k) => k.key);
+    setAttendance((prev) => ({ ...prev, [insId]: new Set(keys) }));
+  };
+
+  const clearAll = (insId) => {
+    setAttendance((prev) => ({ ...prev, [insId]: new Set() }));
+  };
+
+  const toggleOne = (insId, key) => {
+    setAttendance((prev) => {
+      const curr = new Set(prev[insId] || []);
+      if (curr.has(key)) curr.delete(key);
+      else curr.add(key);
+      return { ...prev, [insId]: curr };
+    });
+  };
+
+  const presentCount = (insId) => attendance[insId]?.size || 0;
+
+  /* ---------------- Render ---------------- */
   if (loading) {
     return (
       <main className="p-6">
@@ -243,7 +435,6 @@ const CourseDetails = () => {
       </main>
     );
   }
-
   if (err || !data) {
     return (
       <main className="p-6">
@@ -266,9 +457,10 @@ const CourseDetails = () => {
 
   return (
     <main className="p-6 space-y-6">
-      {/* Header / hero */}
-      <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start gap-4">
+      {/* Header */}
+      <div className="relative overflow-hidden rounded-3xl p-6 text-white shadow-lg border border-green-700/30">
+        {/* Top bar: Back (left) — Edit (right) */}
+        <div className="flex items-center justify-between gap-3">
           <Link
             to="/courses"
             className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-gray-700 hover:bg-gray-50"
@@ -276,11 +468,19 @@ const CourseDetails = () => {
             <ArrowLeft size={16} />
             Back
           </Link>
+
+          <Link
+            to={`/courses/${id}/edit`}
+            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+          >
+            <BadgeDollarSign size={16} />
+            Edit Course
+          </Link>
         </div>
 
         <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
+            <h1 className="drop-shadow text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
                 <Users size={16} />
@@ -301,7 +501,57 @@ const CourseDetails = () => {
             </div>
           </div>
 
-          <div className="flex gap-2">
+
+        </div>
+
+        {data.description && (
+          <div className="mt-4 flex items-start gap-2 text-gray-700">
+            <FileText size={18} className="mt-0.5 text-gray-500" />
+            <p className="max-w-3xl leading-relaxed">{data.description}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Stat label="Sessions" value={computed.totalSessions ?? 0} />
+        <Stat label="Total Hours" value={(computed.totalHours ?? 0).toFixed(2)} />
+        <Stat
+          label="Revenue"
+          value={fmtBHD(computed.revenue ?? 0)}
+          hint={`${fmtBHD(data.cost || 0)} × ${typeof data.students === "number" ? data.students : Array.isArray(data.enrolled) ? data.enrolled.length : 0
+            }`}
+        />
+        <Stat
+          label="Expense"
+          value={fmtBHD(computed.instructorExpense ?? 0)}
+          hint={
+            <span className="inline-flex items-center gap-1">
+              <Clock size={12} /> × total hours
+            </span>
+          }
+        />
+        <Stat
+          label="Profit"
+          value={fmtBHD(computed.profit ?? 0)}
+          hint={
+            <span className="inline-flex items-center gap-1">
+              <DollarSign size={12} />
+              Revenue − Expenses
+            </span>
+          }
+        />
+      </section>
+
+      {/* Schedule (card layout) */}
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-lg border border-green-700/30">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
+            <div className="text-sm text-gray-600">
+              {computed.totalSessions ?? 0} session{(computed.totalSessions ?? 0) === 1 ? "" : "s"}
+            </div>
             <button
               type="button"
               onClick={() => setView("list")}
@@ -329,175 +579,213 @@ const CourseDetails = () => {
           </div>
         </div>
 
-        {data.description && (
-          <div className="mt-4 flex items-start gap-2 text-gray-700">
-            <FileText size={18} className="mt-0.5 text-gray-500" />
-            <p className="max-w-3xl leading-relaxed">{data.description}</p>
+        {/* List = tall cards stacked; Grid = compact cards in columns */}
+        {view === "list" ? (
+          <div className="space-y-3">
+            {(computed.sessions || []).map((s, idx) => {
+              const today = isSameDay(s.date);
+              const hrs = diffHours(s.start_time, s.end_time);
+              return (
+                <div
+                  key={`${s.date}-${idx}`}
+                  className={`rounded-2xl border p-4 shadow-sm transition ${today
+                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                    : "border-gray-200 bg-white hover:shadow-md"
+                    }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      {today ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                          ● Today
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                          {new Date(s.date).toLocaleDateString(undefined, { weekday: "short" })}
+                        </span>
+                      )}
+                      <div className="text-sm">
+                        <div className="font-semibold text-gray-900">{fmtDate(s.date)}</div>
+                        <div className="text-gray-600">
+                          {s.start_time} – {s.end_time}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      <span className="rounded-lg bg-gray-100 px-2.5 py-1">
+                        {hrs.toFixed(2)} h
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {(computed.sessions || []).map((s, idx) => {
+              const today = isSameDay(s.date);
+              const hrs = diffHours(s.start_time, s.end_time);
+              return (
+                <div
+                  key={`${s.date}-${idx}`}
+                  className={`rounded-2xl border p-3 text-sm transition ${today
+                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                    : "border-gray-200 bg-white hover:shadow-md"
+                    }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium text-gray-900">{fmtDate(s.date)}</div>
+                    {today ? (
+                      <span className="rounded-full bg-emerald-600/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        Today
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-600/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        {new Date(s.date).toLocaleDateString(undefined, { weekday: "short" })}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 text-gray-700">
+                    {s.start_time} – {s.end_time}
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">{hrs.toFixed(2)} h</div>
+                </div>
+              );
+            })}
           </div>
         )}
-      </div>
-
-      {/* Stats */}
-      <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Stat label="Sessions" value={computed.totalSessions ?? 0} />
-        <Stat label="Total Hours" value={(computed.totalHours ?? 0).toFixed(2)} />
-        <Stat
-          label="Revenue"
-          value={fmtBHD(computed.revenue ?? 0)}
-          hint={`${fmtBHD(data.cost || 0)} × ${students}`}
-        />
-        <Stat
-          label="Instructor Expense"
-          value={fmtBHD(computed.instructorExpense ?? 0)}
-          hint={
-            <span className="inline-flex items-center gap-1">
-              <Clock size={12} /> × total hours
-            </span>
-          }
-        />
-        <Stat
-          label="Profit"
-          value={fmtBHD(computed.profit ?? 0)}
-          hint={
-            <span className="inline-flex items-center gap-1">
-              <DollarSign size={12} />
-              Revenue − Expenses
-            </span>
-          }
-        />
       </section>
 
-      {/* Instructors */}
-      {Array.isArray(data.instructors) && data.instructors.length > 0 && (
-        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Instructors & Rates</h2>
-          <div className="overflow-x-auto rounded-xl border border-gray-200">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="px-4 py-2 text-left">Instructor</th>
-                  <th className="px-4 py-2 text-left">Hourly Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.instructors.map((ins, idx) => {
-                  const id = insIdOf(ins);
-                  const displayName = ins?.name || insLookup[id] || ins?.email || id || "—";
-                  const rate =
-                    (data.instructorRates &&
-                      (data.instructorRates[id] ?? data.instructorRates?.get?.(id))) ?? "";
-                  return (
-                    <tr key={id || idx} className="border-t">
-                      <td className="px-4 py-2">{displayName}</td>
-                      <td className="px-4 py-2">{rate !== "" ? fmtBHD(Number(rate)) : "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* Schedule */}
-      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
-          <div className="text-sm text-gray-600">
-            {computed.totalSessions ?? 0} session
-            {(computed.totalSessions ?? 0) === 1 ? "" : "s"}
+      {/* ============ Instructor Attendance (auto-save) ============ */}
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-lg border border-green-700/30">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Instructor Attendance</h2>
+          <div className="text-sm">
+            {saving ? (
+              <span className="text-gray-500">Saving…</span>
+            ) : saveMsg ? (
+              <span className="inline-flex items-center gap-1 text-green-700">
+                <CheckCircle2 size={16} /> {saveMsg}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        {view === "list" ? (
-          <div className="space-y-3">
-            {(computed.sessions || []).map((s, idx) => (
-              <div
-                key={`${s.date}-${idx}`}
-                className="grid grid-cols-1 md:grid-cols-[1.2fr,1fr,1fr] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3"
-              >
-                <div className="text-gray-900 text-sm">
-                  <span className="font-medium">Date: </span>
-                  {fmtDate(s.date)}
-                </div>
-                <div className="text-gray-700 text-sm">
-                  <span className="font-medium">Start: </span>
-                  {s.start_time}
-                </div>
-                <div className="text-gray-700 text-sm">
-                  <span className="font-medium">End: </span>
-                  {s.end_time}
-                </div>
-              </div>
-            ))}
+        {instructors.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-gray-700 text-sm">
+            No instructors assigned to this course.
+          </div>
+        ) : (computed.sessions || []).length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-gray-700 text-sm">
+            No scheduled days yet.
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
-            {(computed.sessions || []).map((s, idx) => (
-              <div
-                key={`${s.date}-${idx}`}
-                className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm"
-              >
-                <div className="text-gray-900">{fmtDate(s.date)}</div>
-                <div className="mt-1 text-gray-700">
-                  {s.start_time} – {s.end_time}
+          <div className="space-y-3">
+            {instructors.map((ins, idx) => {
+              const insId = insIdOf(ins);
+              const name = ins?.name || insLookup[insId] || ins?.email || `Instructor ${idx + 1}`;
+              const present = presentCount(insId);
+              const total = sessionKeys.length;
+              const open = !!expanded[insId];
+
+              const { amount, hours, rate } = payFor(insId);
+
+              return (
+                <div key={insId} className="rounded-2xl border border-gray-200">
+                  {/* Row header */}
+                  <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(insId)}
+                      className="inline-flex items-center gap-2 text-left"
+                      title="Expand/collapse"
+                    >
+                      {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                      <span className="font-semibold text-gray-900">{name}</span>
+                      {/* Live pay chip (attended hours × rate) */}
+                      <span
+                        className="ml-2 inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700"
+                        title={`${hours.toFixed(2)}h @ ${fmtBHD(rate)}/h`}
+                      >
+                        {fmtBHD(amount)}
+                      </span>
+                    </button>
+
+                    <div className="text-sm text-gray-700">
+                      {present} / {total} days attended
+                    </div>
+
+                    <div className="justify-self-end flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => markAll(insId)}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:border-gray-400"
+                        title="Mark all days as attended"
+                      >
+                        Select all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => clearAll(insId)}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:border-gray-400"
+                        title="Clear all"
+                      >
+                        Clear
+                      </button>
+                      {/* NEW: Print invoice per instructor */}
+                      <button
+                        type="button"
+                        onClick={() => handlePrintInvoice(insId)}
+                        className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-800 hover:border-gray-400 inline-flex items-center gap-2"
+                        title="Print invoice for attended hours"
+                      >
+                        <Printer size={16} />
+                        <span className="hidden sm:inline">Invoice</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Slide-down list of days */}
+                  <div
+                    className={`grid transition-all duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="border-t border-gray-100 p-4">
+                        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                          {sessionKeys.map(({ key, dateLabel, timeLabel }) => {
+                            const checked = attendance[insId]?.has(key) || false;
+                            return (
+                              <label
+                                key={`${insId}-${key}`}
+                                className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 hover:bg-gray-50"
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4"
+                                  checked={checked}
+                                  onChange={() => toggleOne(insId, key)}
+                                />
+                                <div className="text-sm">
+                                  <div className="font-medium text-gray-900">{dateLabel}</div>
+                                  <div className="text-gray-600">{timeLabel}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
+      {/* ================== End Attendance ================== */}
 
-      {/* Actions */}
-      <section className="flex flex-col md:flex-row items-stretch md:items-center justify-end gap-3">
-        {/* NEW: Instructor selector + Print Invoice */}
-        {instructors.length > 0 && (
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedInstructorId}
-              onChange={(e) => setSelectedInstructorId(e.target.value)}
-              className="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-600"
-              title="Choose instructor to print invoice"
-            >
-
-              <option value="">Select instructor…</option>
-              {(Array.isArray(instructors) ? instructors : []).map((ins, i) => {
-                const id =
-                  typeof ins === "string" ? ins : String(ins?._id || ins?.id || "");
-                const label =
-                  ins?.name || insLookup[id] || ins?.email || id || `Instructor ${i + 1}`;
-                return (
-                  <option key={id} value={id}>
-                    {label}
-                  </option>
-                );
-              })}
-
-            </select>
-
-            <button
-              type="button"
-              disabled={!selectedInstructorId}
-              onClick={handlePrintInvoice}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm ${selectedInstructorId
-                ? "bg-white text-gray-800 border border-gray-300 hover:border-gray-400"
-                : "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                }`}
-            >
-              <Printer size={16} />
-              Print Invoice (PDF)
-            </button>
-          </div>
-        )}
-
-        <Link
-          to={`/courses/${id}/edit`}
-          className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700"
-        >
-          <BadgeDollarSign size={16} />
-          Edit Course
-        </Link>
-      </section>
     </main>
   );
 };

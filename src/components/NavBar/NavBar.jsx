@@ -36,7 +36,7 @@ const NavBar = () => {
 
 
   const rawRoles = userData?.roles ?? userData?.role ?? [];
-  console.log(userData)
+  // console.log(userData)
   const roles = (Array.isArray(rawRoles) ? rawRoles : [rawRoles])
     .filter(Boolean)
     .map(r => (typeof r === "string" ? r : r?.name ?? ""))

@@ -59,6 +59,28 @@ const signIn = async (formData) => {
   }
 };
 
+export async function inspectInvite(token) {
+  const r = await fetch(`${BASE_URL}/invite/inspect?token=${encodeURIComponent(token)}`);
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(t || `${r.status} ${r.statusText}`);
+  }
+  return r.json(); // { username, expiresAt, instructorName? }
+}
+
+export async function acceptInvite({ token, password }) {
+  const r = await fetch(`${BASE_URL}/accept-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error(t || `${r.status} ${r.statusText}`);
+  }
+  return r.json(); // { token, user }
+}
+
 
 export {
   signUp, signIn
