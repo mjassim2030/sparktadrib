@@ -14,6 +14,7 @@ import CourseForm from './components/CourseForm/CourseForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
 import InstructorList from './components/InstructorList/InstructorList';
 import InstructorDetails from './components/InstructorDetails/InstructorDetails';
+import MyCourses from "./components/Teaching/MyCourses";
 
 const AppLayout = () => (
   // Lock viewport height and disable page-level scroll
@@ -83,6 +84,10 @@ const App = () => {
           <Route path="instructors/new" element={<InstructorForm />} />
           <Route path="/instructors" element={<InstructorList />} />
           <Route path="/instructors/:id" element={<InstructorDetails />} />
+
+          {/* Instructor Screens */}
+          <Route path="/teaching" element={<MyCourses />} />
+
         </Route>
       </Route>
 

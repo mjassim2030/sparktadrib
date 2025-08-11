@@ -20,6 +20,26 @@ const index = async () => {
   }
 };
 
+const getUser = async (userID) => {
+  try {
+    // Change the fetch request so that it includes the Authorization header
+    const res = await fetch(`${BASE_URL}/${userID}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+
+    const data = await res.json();
+    
+    if (data.err) {
+      throw new Error(data.err);
+    }
+    return data
+  } catch (err) {
+    console.log(err);
+    throw new Error(err);
+  }
+};
+
 export {
   index,
+  getUser
 };

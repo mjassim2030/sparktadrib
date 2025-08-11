@@ -7,6 +7,25 @@ const authHeader = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+export async function invite(instructorId) {
+  const r = await fetch(`${API_BASE}/${instructorId}/invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json(); // { url, expiresAt }
+}
+
+export async function linkUser(instructorId, { email }) {
+  const r = await fetch(`${API_BASE}/${instructorId}/link-user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeader() },
+    body: JSON.stringify({ email }),
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json(); // updated instructor
+}
+
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
   let data = null;
