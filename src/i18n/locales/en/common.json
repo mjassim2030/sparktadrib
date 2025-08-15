@@ -1,0 +1,79 @@
+{
+  "app": {
+    "title": "TADRIB",
+    "welcomeUser": "Welcome, {{username}}"
+  },
+  "nav": {
+    "home": "Home",
+    "management": "Management",
+    "courses": "Courses",
+    "instructors": "Instructors",
+    "enrollments": "Enrollments",
+    "attendance": "Attendance",
+    "schedule": "Schedule",
+    "mycourses": "My Courses",
+    "teaching": "Teaching",
+    "payments": "Payments",
+    "reports": "Reports",
+    "calendar": "calendar",
+    "subscriptions": "Subscriptions",
+    "settings": "Settings",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signOut": "Sign out"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "upcoming": "Upcoming Sessions",
+    "noUpcoming": "No upcoming sessions.",
+    "time": "Time",
+    "instructors": "Instructors",
+    "location": "Location",
+    "today": "Today",
+    "upcomingCount_zero": "No upcoming sessions",
+    "upcomingCount_one": "{{count}} upcoming",
+    "upcomingCount_two": "{{count}} upcoming",
+    "upcomingCount_few": "{{count}} upcoming sessions",
+    "upcomingCount_many": "{{count}} upcoming sessions",
+    "upcomingCount_other": "{{count}} upcoming"
+  },
+  "cards": {
+    "instructors": "Instructors",
+    "courses": "Courses",
+    "totalRevenue": "Total Revenue",
+    "totalPaid": "Total Paid to Instructors",
+    "totalProfit": "Total Profit",
+    "totalHours": "Total Hours Taught"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Personalize your experience.",
+    "themeLabel": "App Theme",
+    "languageLabel": "App Language",
+    "selectTheme": "Select a theme",
+    "selectLanguage": "Select a language"
+  },
+  "themes": {
+    "system": "System",
+    "ocean": "Ocean (Light)",
+    "oceanDark": "Ocean (Dark)",
+    "emerald": "Emerald (Light)",
+    "emeraldDark": "Emerald (Dark)",
+    "royal": "Royal (Light)",
+    "royalDark": "Royal (Dark)"
+  },
+  "languages": {
+    "en": "English",
+    "ar": "Arabic"
+  },
+  "buttons": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "change": "Change",
+    "close": "Close"
+  },
+  "feedback": {
+    "loading": "Loading…",
+    "loadFailed": "Failed to load data."
+  }
+}

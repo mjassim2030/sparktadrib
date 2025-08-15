@@ -143,7 +143,7 @@ const CourseGrid = ({ hoots = [] }) => {
           {/* New Course button (top-right) */}
           <Link
             to="/courses/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+            className="inline-flex btn btn-primary"
             aria-label="Create new course"
           >
             <Plus size={16} />
@@ -154,10 +154,10 @@ const CourseGrid = ({ hoots = [] }) => {
           <button
             type="button"
             onClick={() => setView("list")}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
-              view === "list"
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+            className={`inline-flex items-center btn btn-primary ${
+              view === "grid"
+                ? "btn-toggle-off"
+                : "btn-toggle-on"
             }`}
             title="List view"
           >
@@ -167,10 +167,10 @@ const CourseGrid = ({ hoots = [] }) => {
           <button
             type="button"
             onClick={() => setView("grid")}
-            className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+            className={`inline-flex items-center btn btn-primary ${
               view === "grid"
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                ? "btn-toggle-on"
+                : "btn-toggle-off"
             }`}
             title="Grid view"
           >

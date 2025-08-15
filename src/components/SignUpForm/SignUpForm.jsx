@@ -1,10 +1,11 @@
-// SignUpForm.jsx
+// src/components/SignUpForm/SignUpForm.jsx
 import { useContext, useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { signUp } from '../../services/authService';
 import { UserContext } from '../../contexts/UserContext';
+import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
-const LEFT_IMAGE_URL = "/images/training-bw-square.jpg"; 
+const LEFT_IMAGE_URL = '/images/training-bw-square.jpg';
 
 const SignUpForm = () => {
   const navigate = useNavigate();
@@ -16,6 +17,8 @@ const SignUpForm = () => {
     password: '',
     passwordConf: '',
   });
+  const [showPw, setShowPw] = useState(false);
+  const [showPwConf, setShowPwConf] = useState(false);
 
   const handleChange = (e) => {
     setMessage('');
@@ -44,138 +47,153 @@ const SignUpForm = () => {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 md:py-14">
-        <div className="grid gap-10 md:grid-cols-2 items-stretch">
-          {/* --- Left visual panel (same as Sign In) --- */}
-          <section
-            style={{
-              backgroundImage: `linear-gradient(rgba(15,23,42,0.55), rgba(15,23,42,0.55)), url(${LEFT_IMAGE_URL})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
-            className="relative hidden md:flex overflow-hidden rounded-2xl"
-          >
-            <div className="flex w-full flex-col justify-between p-10">
-              <div>
-                <p className="text-3xl font-semibold text-white">
-                  Training Management, Simplified.
-                </p>
-                <p className="mt-2 text-slate-200 text-sm">
-                  Plan schedules, assign instructors, manage enrollment and payments, and track outcomes—all in one place.
-                </p>
-              </div>
-            </div>
-          </section>
+    <main className="min-h-screen grid md:grid-cols-2 bg-slate-900">
+      {/* Left: full image with overlay content */}
+      <aside
+        className="relative hidden md:block"
+        style={{
+          backgroundImage: `linear-gradient(rgba(2,6,23,0.55), rgba(2,6,23,0.55)), url(${LEFT_IMAGE_URL})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        <div className="absolute inset-0 p-10 flex flex-col justify-end text-white">
+          <h2 className="text-3xl font-bold">Training Management, Simplified.</h2>
+          <p className="mt-2 text-slate-200 max-w-xl">
+            Create your account and start organizing courses, instructors, and enrollments in minutes.
+          </p>
 
-          {/* --- Right form panel (mirrors Sign In) --- */}
-          <section className="flex items-center justify-center">
-            <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-              {/* Brand */}
-              <div className="mb-6 flex items-center justify-center">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">TADRIB</h1>
-              </div>
-
-              <p className="mb-8 text-center text-sm text-slate-500">
-                Create your account to start managing courses.
-              </p>
-
-              {message && (
-                <p className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-                  {message}
-                </p>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
-                {/* Username */}
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium text-slate-700">
-                    Username <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="username"
-                    name="username"
-                    type="text"
-                    autoComplete="username"
-                    required
-                    value={formData.username}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </div>
-
-                {/* Password */}
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                    Password <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={formData.password}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                </div>
-
-                {/* Confirm Password */}
-                <div>
-                  <label htmlFor="passwordConf" className="block text-sm font-medium text-slate-700">
-                    Confirm Password <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="passwordConf"
-                    name="passwordConf"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={formData.passwordConf}
-                    onChange={handleChange}
-                    className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                  />
-                  {formData.passwordConf && formData.password !== formData.passwordConf && (
-                    <p className="mt-1 text-xs text-rose-600">Passwords must match.</p>
-                  )}
-                </div>
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={isFormInvalid()}
-                  className="mt-2 w-full rounded-lg bg-green-600 px-4 py-2.5 font-semibold text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  Create Account
-                </button>
-              </form>
-
-              {/* Sign in prompt */}
-              <p className="mt-6 text-center text-sm text-slate-600">
-                Already have an account?{' '}
-                <Link to="/sign-in" className="font-semibold text-green-600 hover:text-green-800">
-                  Sign In
-                </Link>
-              </p>
-            </div>
-          </section>
+          <ul className="mt-6 space-y-3 text-slate-100">
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Build your catalog and schedules quickly.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Automate payouts, attendance, and reporting.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Scale confidently with a centralized workflow.</span>
+            </li>
+          </ul>
         </div>
+      </aside>
 
-        {/* Footer (same as Sign In) */}
-        <footer className="mx-auto mt-10 max-w-7xl text-slate-500">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6 text-sm">
-            <p>© {new Date().getFullYear()} Tadrib. All rights reserved.</p>
-            <nav className="flex flex-wrap gap-6">
-              <Link to="/about" className="hover:text-slate-800">About Us</Link>
-              <Link to="/contact" className="hover:text-slate-800">Contact Us</Link>
-              <Link to="/terms" className="hover:text-slate-800">Terms &amp; Conditions</Link>
-              <Link to="/privacy" className="hover:text-slate-800">Privacy Policy</Link>
-            </nav>
+      {/* Right: sign-up form */}
+      <section className="flex items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-md">
+          {/* Brand */}
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">TADRIB</h1>
+            <p className="mt-2 text-sm text-slate-400">Create your account</p>
           </div>
-        </footer>
-      </div>
+
+          {message && (
+            <p className="mb-4 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+              {message}
+            </p>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5" autoComplete="off">
+            {/* Username */}
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-slate-200">
+                Username <span className="text-rose-400">*</span>
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                value={formData.username}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 placeholder-slate-400 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder="Choose a username"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-200">
+                Password <span className="text-rose-400">*</span>
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPw ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-10 text-slate-100 placeholder-slate-400 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center px-2 text-slate-300 hover:text-white"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                >
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label htmlFor="passwordConf" className="block text-sm font-medium text-slate-200">
+                Confirm Password <span className="text-rose-400">*</span>
+              </label>
+              <div className="mt-1 relative">
+                <input
+                  id="passwordConf"
+                  name="passwordConf"
+                  type={showPwConf ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  value={formData.passwordConf}
+                  onChange={handleChange}
+                  className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-10 text-slate-100 placeholder-slate-400 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwConf((v) => !v)}
+                  className="absolute inset-y-0 right-2 inline-flex items-center px-2 text-slate-300 hover:text-white"
+                  aria-label={showPwConf ? 'Hide password' : 'Show password'}
+                >
+                  {showPwConf ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {formData.passwordConf &&
+                formData.password !== formData.passwordConf && (
+                  <p className="mt-1 text-xs text-rose-400">Passwords must match.</p>
+                )}
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={isFormInvalid()}
+              className="mt-2 w-full rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-slate-900 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Create account
+            </button>
+          </form>
+
+          {/* Sign in prompt */}
+          <p className="mt-8 text-center text-sm text-slate-300">
+            Already have an account?{' '}
+            <Link to="/sign-in" className="font-semibold text-white hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </section>
     </main>
   );
 };

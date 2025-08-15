@@ -14,6 +14,7 @@ import CourseForm from './components/CourseForm/CourseForm';
 import InstructorForm from './components/InstructorForm/InstructorForm';
 import InstructorList from './components/InstructorList/InstructorList';
 import InstructorDetails from './components/InstructorDetails/InstructorDetails';
+import Settings from "./components/Settings/Settings"; // or the path you used
 
 import MyCourses from "./components/Teaching/MyCourses";
 import MySchedule from "./components/Teaching/MySchedule";
@@ -23,19 +24,25 @@ import SetPassword from './components/auth/SetPassword';
 import Subscriptions from './components/Billing/Subscriptions';
 
 const AppLayout = () => (
-  // Lock viewport height and disable page-level scroll
-  <div className="h-dvh overflow-hidden bg-gray-100">
+  <div className="relative min-h-screen bg-[color:var(--app-bg)] text-[color:var(--text)]">
     <NavBar />
-
-    {/* Offset for mobile fixed header and desktop fixed sidebar */}
-    <div className="h-full pt-14 md:pt-0 md:pl-64">
-      {/* Only this area scrolls */}
-      <main className="h-full overflow-y-auto p-6">
-        <Outlet />
-      </main>
-    </div>
+    {/* top padding for the mobile header; remove if not needed */}
+    <main className="flex-1 min-w-0 p-6 pt-14 md:pt-6 ltr:md:pl-64 rtl:md:pr-64">
+      <Outlet />
+    </main>
   </div>
 );
+
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  if (!theme || theme === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', theme);
+
+  // If you also use Tailwind's dark: classes elsewhere, keep them in sync:
+  if (theme === 'dark') root.classList.add('dark');
+  else root.classList.remove('dark');
+}
 
 // Simple auth gate to avoid “no routes matched” during initial load
 const RequireAuth = ({ user }) => (user ? <Outlet /> : <Navigate to="/sign-in" replace />);
@@ -44,6 +51,10 @@ const App = () => {
   const [hoots, setHoots] = useState([]);
   const { user } = useContext(UserContext);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    applyTheme(localStorage.getItem('theme') || 'system');
+  }, []);
 
   useEffect(() => {
     const fetchAllHoots = async () => {
@@ -92,6 +103,7 @@ const App = () => {
           <Route path="/instructors" element={<InstructorList />} />
           <Route path="/instructors/:id" element={<InstructorDetails />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
+          <Route path="/settings" element={<Settings />} />
 
           {/* Instructor Screens */}
           <Route path="/teaching" element={<MyCourses />} />

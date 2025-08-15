@@ -698,7 +698,7 @@ const CourseForm = (props) => {
               <button
                 type="button"
                 onClick={() => setView("list")}
-                className={`p-2 rounded-lg border ${view === "list" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-700 border-gray-300"}`}
+                className={`btn btn-primary ${view === "list" ? "btn-toggle-on" : "btn-toggle-off"}`}
                 title="List view"
               >
                 <List size={18} />
@@ -706,7 +706,7 @@ const CourseForm = (props) => {
               <button
                 type="button"
                 onClick={() => setView("grid")}
-                className={`p-2 rounded-lg border ${view === "grid" ? "bg-green-600 text-white border-green-600" : "bg-white text-gray-700 border-gray-300"}`}
+                className={`btn btn-primary ${view === "grid" ? "btn-toggle-on" : "btn-toggle-off"}`}
                 title="Grid view"
               >
                 <Grid size={18} />
@@ -870,14 +870,14 @@ const CourseForm = (props) => {
         <div className="flex items-center justify-end gap-3">
           <button
             type="button"
-            className="rounded-xl border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+            className="btn btn-secondary"
             onClick={() => window.history.back()}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-60"
+            className="btn btn-primary"
             disabled={courseLoading}
           >
             Submit

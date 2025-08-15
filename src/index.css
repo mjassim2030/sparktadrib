@@ -1,26 +1,326 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@layer base {
+  html, body, #root {
+    height: 100%;
+    min-height: 100%;
+  }
+  body {
+    margin: 0; /* should already be reset by Tailwind, but safe */
+    background-color: var(--app-bg);
+    color: var(--text);
+  }
+}
+@layer base {
+  [dir="rtl"] body { font-family: "Tajawal", system-ui, sans-serif; }
+}
 
-/* Optional: small component layer for consistent form styling */
+/* =========================
+   THEME TOKENS
+   ========================= */
+@layer base {
+  /* Default (Base) — Ocean Dark */
+  :root {
+    --app-bg: #f3f4f6;      /* slate-50 */
+    --nav-bar: #334155;       /* slate-700 */
+    
+    --surface: #ffffff;
+    --surface-2: #334155;   /* slate-100 */
+    --border: #e2e8f0;      /* slate-200 */
+    --text: #e2e8f0;        /* slate-900 */
+    --muted: #64748b;       /* slate-500 */
+    --text-primary: #334155;
+
+    --primary: #334155;     /* cyan-500 */
+    --secondary: #e2e8f0;   /* teal-500 */
+
+    --primary-hover: #64748b; /* cyan-600 */
+    --secondary-hover: #64748b; /* teal-600 */
+
+    --on-primary: #e5e7eb;
+    --on-secondary: #041612;
+
+    --primary-focus: #64748ba3;
+    --secondary-focus: #030303;
+    --focus: var(--primary-focus);
+  }
+
+  /* ---------- Ocean (Light / Dark) ---------- */
+  [data-theme="ocean"] {
+    --app-bg: #f3f4f6;      /* slate-50 */
+    --nav-bar: #334155;       /* slate-700 */
+    
+    --surface: #ffffff;
+    --surface-2: #334155;   /* slate-100 */
+    --border: #e2e8f0;      /* slate-200 */
+    --text: #e2e8f0;        /* slate-900 */
+    --muted: #64748b;       /* slate-500 */
+    --text-primary: #334155;
+
+    --primary: #334155;     /* cyan-500 */
+    --secondary: #e2e8f0;   /* teal-500 */
+
+    --primary-hover: #64748b; /* cyan-600 */
+    --secondary-hover: #64748b; /* teal-600 */
+
+    --on-primary: #e5e7eb;
+    --on-secondary: #041612;
+
+    --primary-focus: #64748ba3;
+    --secondary-focus: #030303;
+    --focus: var(--primary-focus);
+  }
+  
+  [data-theme="ocean-dark"],
+  [data-theme="dark"] { /* alias for backward compatibility */
+    --app-bg: #0f172a;          /* slate-900 */
+    --nav-bar: #0f172a;         /* slate-900 */
+
+    --surface: #1e293b;         /* slate-800 */
+    --surface-2: #334155;       /* slate-700 */
+    --border: #334155;          /* slate-700 */
+
+    --text: #e2e8f0;            /* slate-200 */
+    --muted: #94a3b8;           /* slate-400 */
+    --text-primary: #e2e8f0;    /* slate-200 */
+
+    /* Flip primary/secondary for contrast on dark */
+    --primary: #e2e8f0;         /* slate-200 */
+    --secondary: #334155;       /* slate-700 */
+
+    --primary-hover: #cbd5e1;   /* slate-300 */
+    --secondary-hover: #475569; /* slate-600 */
+
+    --on-primary: #0f172a;      /* text on light primary */
+    --on-secondary: #e5e7eb;    /* text on dark secondary */
+
+    --primary-focus: #cbd5e1a3; /* slate-300 @ ~64% */
+    --secondary-focus: #475569a3;
+    --focus: var(--primary-focus);
+  }
+
+  /* ---------- Emerald (Light / Dark) ---------- */
+  [data-theme="emerald"] {
+    --app-bg: #f7fdf9;
+    --navbar: #b7babe;
+
+    --surface: #ffffff;
+    --surface-2: #f3faf6;
+    --border: #d1fae5;      /* emerald-100 */
+    --text: #052e16;        /* emerald-950 */
+    --muted: #64748b;       /* slate-500 for readability */
+
+    --primary: #22c55e;     /* emerald-500 */
+    --secondary: #16a34a;   /* emerald-600 */
+
+    --primary-hover: #16a34a; /* emerald-600 */
+    --secondary-hover: #15803d; /* emerald-700 */
+
+    --on-primary: #03150b;
+    --on-secondary: #03150b;
+
+    --primary-focus: #22c55e;
+    --secondary-focus: #16a34a;
+    --focus: var(--primary-focus);
+  }
+  [data-theme="emerald-dark"] {
+    --app-bg: #0a0f0a;
+    --navbar: #0f1012;     
+
+    --surface: #0f1a13;
+    --surface-2: #112118;
+    --border: #1a2e22;
+    --text: #e7f6ec;
+    --muted: #9ab5a4;
+
+    --primary: #22c55e;
+    --secondary: #16a34a;
+
+    --primary-hover: #16a34a;
+    --secondary-hover: #15803d;
+
+    --on-primary: #001507;
+    --on-secondary: #001307;
+
+    --primary-focus: #22c55e;
+    --secondary-focus: #16a34a;
+    --focus: var(--primary-focus);
+  }
+
+  /* ---------- Royal (Light / Dark) ---------- */
+  [data-theme="royal"] {
+    --app-bg: #f8f7ff;
+    --navbar: #d7e0eb;     
+
+    --surface: #ffffff;
+    --surface-2: #f2f1ff;
+    --border: #e5e4ff;
+    --text: #111827;        /* slate-900 */
+    --muted: #6b7280;       /* slate-500 */
+
+    --primary: #6366f1;     /* indigo-500 */
+    --secondary: #8b5cf6;   /* violet-500 */
+
+    --primary-hover: #4f46e5; /* indigo-600 */
+    --secondary-hover: #7c3aed; /* violet-600 */
+
+    --on-primary: #0b1020;
+    --on-secondary: #0d0a1a;
+
+    --primary-focus: #6366f1;
+    --secondary-focus: #8b5cf6;
+    --focus: var(--primary-focus);
+  }
+  [data-theme="royal-dark"] {
+    --app-bg: #0f1022;
+    --navbar: #2a2a2a;     
+
+    --surface: #15163a;
+    --surface-2: #1b1d4b;
+    --border: #242758;
+    --text: #e5e7eb;
+    --muted: #a3a3c2;
+
+    --primary: #818cf8;     /* indigo-400 */
+    --secondary: #a78bfa;   /* violet-400 */
+
+    --primary-hover: #6366f1; /* indigo-500 */
+    --secondary-hover: #8b5cf6; /* violet-500 */
+
+    --on-primary: #0b0d1a;
+    --on-secondary: #0b0d1a;
+
+    --primary-focus: #818cf8;
+    --secondary-focus: #a78bfa;
+    --focus: var(--primary-focus);
+  }
+
+  /* System preference when no explicit theme is set */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --app-bg: #0b1220;
+      --navbar: #595a5b;     
+
+      --surface: #0f172a;
+      --surface-2: #111827;
+      --border: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+
+      --primary: #22d3ee;
+      --secondary: #14b8a6;
+
+      --primary-hover: #06b6d4;
+      --secondary-hover: #0d9488;
+
+      --on-primary: #001319;
+      --on-secondary: #001913;
+
+      --primary-focus: #22d3ee;
+      --secondary-focus: #14b8a6;
+      --focus: var(--primary-focus);
+    }
+  }
+
+  html, body {
+    background-color: var(--app-bg); 
+    color: var(--text);
+  }
+}
+
+/* =========================
+   COMPONENT STYLES (tokenized)
+   ========================= */
 @layer components {
-  .form-wrap { @apply max-w-3xl mx-auto p-6 md:p-8 bg-white shadow-sm ring-1 ring-gray-200 rounded-2xl; }
-  .form-title { @apply text-2xl font-semibold tracking-tight text-gray-900 mb-6; }
+  .form-wrap {
+    @apply max-w-3xl mx-auto p-6 md:p-8 shadow-sm rounded-2xl;
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .form-title { @apply text-2xl font-semibold tracking-tight mb-6; color: var(--text); }
 
   .field { @apply space-y-1; }
-  .label { @apply block text-sm font-medium text-gray-700; }
-  .hint { @apply text-xs text-gray-500; }
+  .label { @apply block text-lg font-semibold font-medium; color: var(--text-primary); }
+  .hint { @apply text-xs; color: var(--muted); }
 
-  .input { @apply block w-full rounded-lg border-gray-300 focus:border-gray-900 focus:ring-gray-900; }
-  .select { @apply block w-full rounded-lg border-gray-300 focus:border-gray-900 focus:ring-gray-900; }
-  .textarea { @apply block w-full rounded-lg border-gray-300 focus:border-gray-900 focus:ring-gray-900; }
+  .input, .select, .textarea {
+    @apply block w-full rounded-lg px-3 py-2 shadow-sm;
+    background-color: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .input::placeholder, .textarea::placeholder { color: color-mix(in oklab, var(--text) 40%, transparent); }
 
-  .card { @apply rounded-xl border border-gray-200 p-4 bg-gray-50; }
+  .input:focus, .select:focus, .textarea:focus {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-color: var(--focus);
+  }
+
+  .card {
+    @apply rounded-xl p-4;
+    background-color: var(--surface);
+    border: 2px solid var(--border);
+  }
   .row { @apply grid grid-cols-1 md:grid-cols-3 gap-4; }
 
-  .btn { @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition;
-          @apply focus:outline-none focus:ring-2 focus:ring-offset-2; }
-  .btn-primary { @apply bg-gray-900 text-white hover:bg-black focus:ring-gray-900; }
-  .btn-ghost { @apply bg-transparent text-gray-700 hover:bg-gray-100; }
-  .btn-danger { @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-600; }
+  .btn {
+    @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition;
+    @apply focus:outline-none px-4 py-2 disabled:opacity-60;
+  }
+
+  .btn-primary {
+    background-color: var(--primary);
+    color: var(--on-primary);
+  }
+  .btn-primary:hover { background-color: var(--primary-hover); }
+  .btn-primary:focus { box-shadow: 0 0 0 2px var(--primary-focus); }
+
+  .btn-secondary {
+    background-color: var(--secondary);
+    color: var(--on-secondary);
+  }
+  .btn-secondary:hover { background-color: var(--secondary-hover); }
+  .btn-secondary:focus { box-shadow: 0 0 0 2px var(--secondary-focus); }
+
+  /* Neutral/tonal button (formerly duplicate .btn-secondary) */
+  .btn-neutral {
+    background-color: color-mix(in oklab, var(--text) 10%, var(--surface));
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-toggle-on {
+    background-color: var(--primary);
+    color: var(--on-primary);
+  }
+  .btn-toggle-off {
+    background-color: color-mix(in oklab, var(--text) 8%, var(--surface));
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost { background: transparent; color: var(--text); }
+  .btn-danger { @apply text-white; background-color: #dc2626; } /* red-600 */
+  .btn-danger:hover { background-color: #b91c1c; }               /* red-700 */
+
+  .small-cards {
+    @apply rounded-2xl p-4 shadow-lg;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .headers {
+    background-color: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    @apply shadow-lg;
+  }
+
+  .back-primary {
+    background-color: var(--nav-bar);
+  }
 }

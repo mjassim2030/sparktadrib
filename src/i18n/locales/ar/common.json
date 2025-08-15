@@ -1,0 +1,79 @@
+{
+  "app": {
+    "title": "TADRIB",
+    "welcomeUser": "مرحبًا، {{username}}"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "management": "الإدارة",
+    "courses": "الدورات",
+    "instructors": "المدرّسون",
+    "enrollments": "الإنضمام للدورات",
+    "attendance": "الحضور والغياب",
+    "payments": "المدفوعات",
+    "mycourses" : "دوراتي",
+    "teaching" : "التدريب",
+    "schedule": "جدولي",
+    "reports": "التقارير",
+    "calendar": "التقويم",
+    "subscriptions": "الاشتراكات",
+    "settings": "الإعدادات",
+    "signIn": "تسجيل الدخول",
+    "signUp": "التسجيل",
+    "signOut": "تسجيل الخروج"
+  },
+  "dashboard": {
+    "title": "لوحة التحكم",
+    "upcoming": "الجلسات القادمة",
+    "noUpcoming": "لا توجد جلسات قادمة.",
+    "time": "الوقت",
+    "instructors": "المدرّسون",
+    "location": "الموقع",
+    "today": "اليوم",
+    "upcomingCount_zero": "لا جلسات قادمة",
+    "upcomingCount_one": "جلسة واحدة قادمة",
+    "upcomingCount_two": "جلستان قادمتان",
+    "upcomingCount_few": "{{count}} جلسات قادمة",
+    "upcomingCount_many": "{{count}} جلسة قادمة",
+    "upcomingCount_other": "{{count}} جلسة قادمة"
+  },
+  "cards": {
+    "instructors": "عدد المدرّسين",
+    "courses": "عدد الدورات",
+    "totalRevenue": "إجمالي الإيرادات",
+    "totalPaid": "إجمالي المدفوع للمدرّسين",
+    "totalProfit": "صافي الربح",
+    "totalHours": "إجمالي الساعات المُدرَّسة"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "خصّص تجربتك.",
+    "themeLabel": "سِمة التطبيق",
+    "languageLabel": "لغة التطبيق",
+    "selectTheme": "اختر سِمة",
+    "selectLanguage": "اختر لغة"
+  },
+  "themes": {
+    "system": "النظام",
+    "ocean": "أوشن (فاتح)",
+    "oceanDark": "أوشن (داكن)",
+    "emerald": "إيميرالد (فاتح)",
+    "emeraldDark": "إيميرالد (داكن)",
+    "royal": "رويال (فاتح)",
+    "royalDark": "رويال (داكن)"
+  },
+  "languages": {
+    "en": "الإنجليزية",
+    "ar": "العربية"
+  },
+  "buttons": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "change": "تغيير",
+    "close": "إغلاق"
+  },
+  "feedback": {
+    "loading": "جارٍ التحميل…",
+    "loadFailed": "تعذّر تحميل البيانات."
+  }
+}

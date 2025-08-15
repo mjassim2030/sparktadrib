@@ -124,7 +124,7 @@ async function saveAttendance(courseId, map, token) {
 
 /* ---------------- Small stat card ---------------- */
 const Stat = ({ label, value, hint, className = "" }) => (
-  <div className={`rounded-2xl border border-green-700/30 bg-white p-4 shadow-lg ${className}`}>
+  <div className={`small-cards ${className}`}>
     <div className="text-xs text-gray-500">{label}</div>
     <div className="mt-1 text-xl font-semibold text-gray-900">{value}</div>
     {hint ? <div className="text-xs text-gray-500 mt-1">{hint}</div> : null}
@@ -458,12 +458,12 @@ const CourseDetails = () => {
   return (
     <main className="p-6 space-y-6">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl p-6 text-white shadow-lg border border-green-700/30">
+      <div className="relative overflow-hidden rounded-3xl p-6 headers">
         {/* Top bar: Back (left) — Edit (right) */}
         <div className="flex items-center justify-between gap-3">
           <Link
             to="/courses"
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center border btn btn-primary"
           >
             <ArrowLeft size={16} />
             Back
@@ -471,7 +471,7 @@ const CourseDetails = () => {
 
           <Link
             to={`/courses/${id}/edit`}
-            className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+            className="inline-flex items-center btn btn-primary"
           >
             <BadgeDollarSign size={16} />
             Edit Course
@@ -555,9 +555,9 @@ const CourseDetails = () => {
             <button
               type="button"
               onClick={() => setView("list")}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${view === "list"
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+              className={`inline-flex items-center btn btn-primary ${view === "list"
+                ? "btn-toggle-on"
+                : "btn-toggle-off"
                 }`}
               title="List view"
             >
@@ -567,9 +567,9 @@ const CourseDetails = () => {
             <button
               type="button"
               onClick={() => setView("grid")}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm ${view === "grid"
-                ? "bg-green-600 text-white border-green-600"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+              className={`inline-flex items-center btn btn-primary ${view === "list"
+                ? "btn-toggle-off"
+                : "btn-toggle-on"
                 }`}
               title="Grid view"
             >

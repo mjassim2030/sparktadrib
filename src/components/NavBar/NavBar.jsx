@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { UserContext } from "../../contexts/UserContext";
 import * as userService from '../../services/userService';
+import { useTranslation } from "react-i18next";
 
 import {
   Home,
@@ -20,19 +21,20 @@ import {
 } from "lucide-react";
 
 const NavBar = () => {
+  const { t } = useTranslation();
   const { user, setUser } = useContext(UserContext);
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const [userData, setUserData] = useState()
   // Detect roles (tolerant of different shapes)
 
-    useEffect(() => {
-      const fetchUser = async () => {
-        const res = await userService.getUser(user._id);
-        setUserData(res.user);
-      };
-      if (user) fetchUser();
-    }, [user]);
+  useEffect(() => {
+    const fetchUser = async () => {
+      const res = await userService.getUser(user._id);
+      setUserData(res.user);
+    };
+    if (user) fetchUser();
+  }, [user]);
 
 
   const rawRoles = userData?.roles ?? userData?.role ?? [];
@@ -70,12 +72,12 @@ const NavBar = () => {
   const baseLink =
     "flex items-center py-2 gap-3 px-6 -mx-6 transition focus:outline-none focus:ring-2 focus:ring-white/40";
   const linkClasses = (path) =>
-    `${baseLink} ${isActive(path) ? "bg-green-800" : "hover:bg-green-800"}`;
+    `${baseLink} ${isActive(path) ? "bg-slate-500" : "hover:bg-slate-500"}`;
 
   return (
     <>
       {/* MOBILE HEADER (fixed) */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 bg-green-600 text-white h-14 shadow flex items-center">
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 back-primary text-white h-14 shadow flex items-center">
         <button
           type="button"
           aria-label={open ? "Close menu" : "Open menu"}
@@ -106,20 +108,26 @@ const NavBar = () => {
         role="navigation"
         aria-label="Primary"
         className={[
-          "fixed left-0 z-50 w-64 transform bg-green-600 text-white",
-          open ? "translate-x-0" : "-translate-x-full",
-          // Sit below the mobile header; pinned full height on md+
-          "top-14 bottom-0 md:top-0 md:bottom-0 md:translate-x-0",
+          "fixed z-50 w-64 transform",
+          "ltr:left-0 rtl:right-0",
+          // mobile slide in/out
+          open ? "translate-x-0" : "ltr:-translate-x-full rtl:translate-x-full",
+          // pin on desktop (force visible)
+          "top-14 bottom-0 md:top-0 md:bottom-0 md:!translate-x-0",
+          // styling
           "flex flex-col p-6 gap-3 shadow-xl overflow-y-auto",
+          "bg-[color:var(--surface-2)] text-[color:var(--text)]",
+          "ltr:border-r rtl:border-l border-[color:var(--border)]",
         ].join(" ")}
       >
+
         {/* Brand / Version (desktop only) */}
         <div className="mb-2 text-center hidden md:block select-none">
           <Link
             to="/"
-            className="text-3xl font-bold text-white hover:text-gray-300"
+            className="text-3xl font-bold text-white hover:text-slate-300"
           >
-            TADRIB
+            {t("app.title")}
           </Link>
           <p className="text-white/70">
             <small>v0.1</small>
@@ -134,7 +142,7 @@ const NavBar = () => {
               <li>
                 <Link to="/" className={linkClasses("/")}>
                   <Home size={20} />
-                  Home
+                  {t("nav.home")}
                 </Link>
               </li>
 
@@ -142,7 +150,7 @@ const NavBar = () => {
               {isInstructor && (
                 <>
                   <li className="mt-4 mb-1 px-2 text-xs uppercase tracking-wide text-white/70">
-                    Teaching
+                    {t("nav.teaching")}
                   </li>
                   <li>
                     <Link
@@ -151,7 +159,7 @@ const NavBar = () => {
                       aria-current={isActive("/teaching") ? "page" : undefined}
                     >
                       <BookOpen size={20} />
-                      My Courses
+                      {t("nav.mycourses")}
                     </Link>
                   </li>
                   <li>
@@ -161,7 +169,7 @@ const NavBar = () => {
                       aria-current={isActive("/schedule") ? "page" : undefined}
                     >
                       <CalendarDays size={20} />
-                      My Schedule
+                      {t("nav.schedule")}
                     </Link>
                   </li>
                   <li>
@@ -171,7 +179,7 @@ const NavBar = () => {
                       aria-current={isActive("/attendance") ? "page" : undefined}
                     >
                       <ClipboardList size={20} />
-                      Attendance
+                      {t("nav.attendance")}
                     </Link>
                   </li>
                 </>
@@ -181,7 +189,7 @@ const NavBar = () => {
               {isAdmin && (
                 <>
                   <li className="mt-4 mb-1 px-2 text-xs uppercase tracking-wide text-white/70">
-                    Management
+                    {t("nav.management")}
                   </li>
                   <li>
                     <Link
@@ -190,7 +198,7 @@ const NavBar = () => {
                       aria-current={isActive("/courses") ? "page" : undefined}
                     >
                       <BookOpen size={20} />
-                      Courses
+                      {t("nav.courses")}
                     </Link>
                   </li>
                   <li>
@@ -200,7 +208,7 @@ const NavBar = () => {
                       aria-current={isActive("/instructors") ? "page" : undefined}
                     >
                       <Users size={20} />
-                      Instructors
+                      {t("nav.instructors")}
                     </Link>
                   </li>
                   <li>
@@ -210,7 +218,7 @@ const NavBar = () => {
                       aria-current={isActive("/enrollments") ? "page" : undefined}
                     >
                       <ClipboardList size={20} />
-                      Enrollments
+                      {t("nav.enrollments")}
                     </Link>
                   </li>
                   <li>
@@ -220,7 +228,7 @@ const NavBar = () => {
                       aria-current={isActive("/payments") ? "page" : undefined}
                     >
                       <CreditCard size={20} />
-                      Payments
+                      {t("nav.payments")}
                     </Link>
                   </li>
                   <li>
@@ -230,7 +238,7 @@ const NavBar = () => {
                       aria-current={isActive("/reports") ? "page" : undefined}
                     >
                       <BarChart3 size={20} />
-                      Reports
+                      {t("nav.reports")}
                     </Link>
                   </li>
                   <li>
@@ -240,7 +248,7 @@ const NavBar = () => {
                       aria-current={isActive("/calendar") ? "page" : undefined}
                     >
                       <CalendarDays size={20} />
-                      Calendar
+                       {t("nav.calendar")}
                     </Link>
                   </li>
                 </>
@@ -256,7 +264,7 @@ const NavBar = () => {
                   aria-current={isActive("/subscriptions") ? "page" : undefined}
                 >
                   <CreditCard size={20} />
-                  Subscriptions
+                  {t("nav.subscriptions")}
                 </Link>
               </li>
               <li>
@@ -266,7 +274,7 @@ const NavBar = () => {
                   aria-current={isActive("/settings") ? "page" : undefined}
                 >
                   <Settings size={20} />
-                  Settings
+                  {t("nav.settings")}
                 </Link>
               </li>
               <li>
@@ -275,7 +283,7 @@ const NavBar = () => {
                   className={`${baseLink} w-full hover:bg-red-600`}
                 >
                   <LogOut size={20} />
-                  Sign Out
+                  {t("nav.signOut")}
                 </button>
               </li>
             </ul>
@@ -286,7 +294,7 @@ const NavBar = () => {
             <li>
               <Link to="/" className={linkClasses("/")}>
                 <Home size={20} />
-                Home
+                {t("nav.home")}
               </Link>
             </li>
             <li>
@@ -296,7 +304,7 @@ const NavBar = () => {
                 aria-current={isActive("/sign-in") ? "page" : undefined}
               >
                 <LogIn size={20} />
-                Sign In
+                {t("nav.signIn")}
               </Link>
             </li>
             <li>
@@ -306,7 +314,7 @@ const NavBar = () => {
                 aria-current={isActive("/sign-up") ? "page" : undefined}
               >
                 <UserPlus size={20} />
-                Sign Up
+                {t("nav.signUp")}
               </Link>
             </li>
           </ul>

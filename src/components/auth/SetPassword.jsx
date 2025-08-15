@@ -3,6 +3,7 @@ import React, { useEffect, useState, useContext } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { inspectInvite, acceptInvite } from "../../services/authService";
 import { UserContext } from "../../contexts/UserContext";
+import { Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
 const LEFT_IMAGE_URL = "/images/training-bw-square.jpg";
 
@@ -18,6 +19,9 @@ const SetPassword = () => {
 
   const [password, setPassword] = useState("");
   const [passwordConf, setPasswordConf] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showPwConf, setShowPwConf] = useState(false);
+
   const [submitErr, setSubmitErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -40,7 +44,9 @@ const SetPassword = () => {
         if (active) setLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [token]);
 
   const isInvalid = () => {
@@ -75,138 +81,158 @@ const SetPassword = () => {
   };
 
   return (
-    <main className="min-h-screen bg-slate-100">
-      <div className="mx-auto max-w-7xl px-4 py-8 md:py-14">
-        <div className="grid gap-10 md:grid-cols-2 items-stretch">
-          {/* Left visual panel */}
-          <section
-            style={{
-              backgroundImage: `linear-gradient(rgba(15,23,42,0.55), rgba(15,23,42,0.55)), url(${LEFT_IMAGE_URL})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-            className="relative hidden md:flex overflow-hidden rounded-2xl"
-          >
-            <div className="flex w-full flex-col justify-between p-10">
-              <div>
-                <p className="text-3xl font-semibold text-white">Welcome to TADRIB.</p>
-                <p className="mt-2 text-slate-200 text-sm">
-                  Set your password to access your instructor workspace.
-                </p>
-              </div>
-            </div>
-          </section>
+    <main className="min-h-screen grid md:grid-cols-2 bg-slate-900">
+      {/* Left: full image with gradient overlay and highlights */}
+      <aside
+        className="relative hidden md:block"
+        style={{
+          backgroundImage: `linear-gradient(rgba(2,6,23,0.55), rgba(2,6,23,0.55)), url(${LEFT_IMAGE_URL})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <div className="absolute inset-0 p-10 flex flex-col justify-end text-white">
+          <h2 className="text-3xl font-bold">Welcome to TADRIB.</h2>
+          <p className="mt-2 text-slate-200 max-w-xl">
+            Set your password to access your instructor workspace and get started quickly.
+          </p>
 
-          {/* Right form panel */}
-          <section className="flex items-center justify-center">
-            <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
-              <div className="mb-6 flex items-center justify-center">
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">TADRIB</h1>
-              </div>
-
-              {loading ? (
-                <p className="text-center text-slate-600">Checking your invite…</p>
-              ) : inspectErr ? (
-                <>
-                  <p className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-                    {inspectErr}
-                  </p>
-                  <div className="text-center">
-                    <Link to="/sign-in" className="text-blue-700 hover:underline">
-                      Go to Sign In
-                    </Link>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="mb-4 text-center text-sm text-slate-600">
-                    Set a password for{" "}
-                    <span className="font-semibold">{inviteInfo?.username}</span>
-                    {inviteInfo?.instructorName ? (
-                      <> (Instructor: {inviteInfo.instructorName})</>
-                    ) : null}
-                  </p>
-
-                  {submitErr && (
-                    <p className="mb-4 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-                      {submitErr}
-                    </p>
-                  )}
-
-                  <form onSubmit={onSubmit} className="space-y-5" autoComplete="off">
-                    {/* Password */}
-                    <div>
-                      <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                        New Password <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        id="password"
-                        name="password"
-                        type="password"
-                        autoComplete="new-password"
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                        placeholder="••••••••"
-                      />
-                      <p className="mt-1 text-xs text-slate-500">Use at least 8 characters.</p>
-                    </div>
-
-                    {/* Confirm */}
-                    <div>
-                      <label htmlFor="passwordConf" className="block text-sm font-medium text-slate-700">
-                        Confirm Password <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        id="passwordConf"
-                        name="passwordConf"
-                        type="password"
-                        autoComplete="new-password"
-                        required
-                        value={passwordConf}
-                        onChange={(e) => setPasswordConf(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 shadow-sm focus:border-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900"
-                        placeholder="••••••••"
-                      />
-                      {passwordConf && password !== passwordConf && (
-                        <p className="mt-1 text-xs text-rose-600">Passwords must match.</p>
-                      )}
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={busy || isInvalid()}
-                      className="mt-2 w-full rounded-lg bg-green-600 px-4 py-2.5 font-semibold text-white hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-700 disabled:opacity-60"
-                    >
-                      {busy ? "Setting Password…" : "Set Password"}
-                    </button>
-                  </form>
-
-                  <p className="mt-6 text-center text-sm text-slate-600">
-                    Already have an account?{" "}
-                    <Link to="/sign-in" className="font-semibold text-green-600 hover:text-green-800">
-                      Sign In
-                    </Link>
-                  </p>
-                </>
-              )}
-            </div>
-          </section>
+          <ul className="mt-6 space-y-3 text-slate-100">
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Centralize courses, schedules, and payouts.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Track attendance and progress at a glance.</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5" size={18} />
+              <span>Collaborate efficiently with your team.</span>
+            </li>
+          </ul>
         </div>
+      </aside>
 
-        <footer className="mx-auto mt-10 max-w-7xl text-slate-500">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6 text-sm">
-            <p>© {new Date().getFullYear()} Tadrib. All rights reserved.</p>
-            <nav className="flex flex-wrap gap-6">
-              <Link to="/about" className="hover:text-slate-800">About Us</Link>
-              <Link to="/contact" className="hover:text-slate-800">Contact Us</Link>
-              <Link to="/terms" className="hover:text-slate-800">Terms &amp; Conditions</Link>
-              <Link to="/privacy" className="hover:text-slate-800">Privacy Policy</Link>
-            </nav>
+      {/* Right: form */}
+      <section className="flex items-center justify-center p-6 md:p-10">
+        <div className="w-full max-w-md">
+          {/* Brand */}
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">TADRIB</h1>
+            <p className="mt-2 text-sm text-slate-400">Set your password</p>
           </div>
-        </footer>
-      </div>
+
+          {loading ? (
+            <p className="text-center text-slate-300">Checking your invite…</p>
+          ) : inspectErr ? (
+            <>
+              <p className="mb-4 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                {inspectErr}
+              </p>
+              <div className="text-center">
+                <Link to="/sign-in" className="text-white hover:underline">
+                  Go to Sign in
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mb-4 text-center text-sm text-slate-300">
+                Set a password for{" "}
+                <span className="font-semibold text-white">{inviteInfo?.username}</span>
+                {inviteInfo?.instructorName ? (
+                  <> (Instructor: {inviteInfo.instructorName})</>
+                ) : null}
+              </p>
+
+              {submitErr && (
+                <p className="mb-4 rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+                  {submitErr}
+                </p>
+              )}
+
+              <form onSubmit={onSubmit} className="space-y-5" autoComplete="off">
+                {/* Password */}
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-slate-200">
+                    New Password <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="mt-1 relative">
+                    <input
+                      id="password"
+                      name="password"
+                      type={showPw ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-10 text-slate-100 placeholder-slate-400 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="absolute inset-y-0 right-2 inline-flex items-center px-2 text-slate-300 hover:text-white"
+                      aria-label={showPw ? "Hide password" : "Show password"}
+                    >
+                      {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-400">Use at least 8 characters.</p>
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label htmlFor="passwordConf" className="block text-sm font-medium text-slate-200">
+                    Confirm Password <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="mt-1 relative">
+                    <input
+                      id="passwordConf"
+                      name="passwordConf"
+                      type={showPwConf ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      value={passwordConf}
+                      onChange={(e) => setPasswordConf(e.target.value)}
+                      className="block w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 pr-10 text-slate-100 placeholder-slate-400 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwConf((v) => !v)}
+                      className="absolute inset-y-0 right-2 inline-flex items-center px-2 text-slate-300 hover:text-white"
+                      aria-label={showPwConf ? "Hide password" : "Show password"}
+                    >
+                      {showPwConf ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {passwordConf && password !== passwordConf && (
+                    <p className="mt-1 text-xs text-rose-400">Passwords must match.</p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={busy || isInvalid()}
+                  className="mt-2 w-full rounded-lg bg-emerald-500 px-4 py-2.5 font-semibold text-slate-900 hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
+                >
+                  {busy ? "Setting password…" : "Set password"}
+                </button>
+              </form>
+
+              <p className="mt-8 text-center text-sm text-slate-300">
+                Already have an account?{" "}
+                <Link to="/sign-in" className="font-semibold text-white hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
+      </section>
     </main>
   );
 };

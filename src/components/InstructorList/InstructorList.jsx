@@ -86,7 +86,7 @@ const InstructorList = () => {
   }, [instructors, q]);
 
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="min-h-screen">
       <div className="mx-auto max-w-7xl p-6">
         <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-900">Instructors</h1>
@@ -121,7 +121,7 @@ const InstructorList = () => {
             </div>
             <Link
               to="/instructors/new"
-              className="ml-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+              className="btn btn-primary"
             >
               Add Instructor
             </Link>

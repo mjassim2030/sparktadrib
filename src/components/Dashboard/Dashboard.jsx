@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import { useTranslation } from "react-i18next";
 
 const Dashboard = () => {
   const { user } = useContext(UserContext);
@@ -21,6 +22,7 @@ const Dashboard = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     if (!user) return;
@@ -411,7 +413,7 @@ const Dashboard = () => {
     <main className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-600">Welcome, {user.username}</p>
+        <p className="text-sm text-slate-600">{t("app.welcomeUser", { username: user?.username || "" })}</p>
       </div>
 
       {err && (
@@ -435,9 +437,9 @@ const Dashboard = () => {
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
             <CalendarDays className="h-5 w-5 text-slate-500" />
-            Upcoming Sessions
+            {t("dashboard.upcoming")}
           </h2>
-          <span className="text-sm text-slate-500">{upcoming.length} upcoming</span>
+          <span className="text-sm text-slate-500">{t("dashboard.upcomingCount", { count: upcoming.length })}</span>
         </div>
 
         {upcoming.length === 0 ? (

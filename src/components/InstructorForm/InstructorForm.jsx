@@ -254,14 +254,14 @@ const InstructorForm = ({ instructor = null, onSuccess }) => {
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+            className="btn btn-secondary"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="rounded-xl bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-60"
+            className="btn btn-primary btn-primary:hover"
           >
             {saving ? "Saving…" : mode === "edit" ? "Save Changes" : "Create Instructor"}
           </button>
