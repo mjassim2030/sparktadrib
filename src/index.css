@@ -54,7 +54,7 @@
     --surface: #ffffff;
     --surface-2: #334155;   /* slate-100 */
     --border: #e2e8f0;      /* slate-200 */
-    --text: #e2e8f0;        /* slate-900 */
+    --text: #334155;        /* slate-900 */
     --muted: #64748b;       /* slate-500 */
     --text-primary: #334155;
 
@@ -314,7 +314,7 @@
   }
 
   .headers {
-    background-color: var(--surface-2);
+    background-color: var(--surface);
     color: var(--text);
     border: 1px solid var(--border);
     @apply shadow-lg;

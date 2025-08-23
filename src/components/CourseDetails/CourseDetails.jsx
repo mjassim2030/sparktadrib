@@ -480,7 +480,7 @@ const CourseDetails = () => {
 
         <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="drop-shadow text-2xl md:text-3xl font-bold text-gray-900">{title}</h1>
+            <h1 className="drop-shadow text-2xl md:text-3xl font-bold text-gray-700">{title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
                 <Users size={16} />
