@@ -83,6 +83,8 @@ const fmtTime = (hhmm) => {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
 /* ---------------- Attendance I/O with LS fallback ---------------- */
 const lsKey = (courseId) => `att:${courseId}`;
 
@@ -93,7 +95,7 @@ async function loadAttendance(courseId, token, signal) {
       signal,
     });
     if (r.ok) return r.json(); // { [instructorId]: string[] }
-  } catch { }
+  } catch {}
   try {
     const raw = localStorage.getItem(lsKey(courseId));
     return raw ? JSON.parse(raw) : {};
@@ -113,7 +115,7 @@ async function saveAttendance(courseId, map, token) {
       body: JSON.stringify(map),
     });
     if (r.ok) return true;
-  } catch { }
+  } catch {}
   try {
     localStorage.setItem(lsKey(courseId), JSON.stringify(map || {}));
     return true;
@@ -185,14 +187,14 @@ const CourseDetails = () => {
           list.map((i) => [String(i.id), i.name || i.email || String(i.id)])
         );
         if (alive) setInsLookup(map);
-      } catch { }
+      } catch {}
     })();
     return () => {
       alive = false;
     };
   }, [data?.instructors]);
 
-  /* ---------------- Computed metrics ---------------- */
+  /* ---------------- Computed metrics (with discount) ---------------- */
   const getRateFor = (instructorId) => {
     const ir = data?.instructorRates;
     if (!ir) return 0;
@@ -203,6 +205,8 @@ const CourseDetails = () => {
 
   const computed = useMemo(() => {
     if (!data) return {};
+
+    // Sessions / hours
     const sessions = Array.isArray(data.courseDatesTimes) ? data.courseDatesTimes : [];
     const totalSessions =
       typeof data.totalSessions === "number" ? data.totalSessions : sessions.length;
@@ -212,9 +216,40 @@ const CourseDetails = () => {
       totalHoursBackend ??
       sessions.reduce((sum, s) => sum + diffHours(s.start_time, s.end_time), 0);
 
-    const revenue =
-      Number.isFinite(data?.revenue) ? data.revenue : (data.cost || 0) * (data.students || 0);
+    // Students (prefer numeric field; fallback to enrolled length)
+    const studentsCount = Number.isFinite(data?.students)
+      ? data.students
+      : Array.isArray(data?.enrolled)
+      ? data.enrolled.length
+      : 0;
 
+    // Gross revenue
+    const grossRevenue =
+      Number.isFinite(data?.revenue) && data.revenue >= 0
+        ? data.revenue
+        : (Number(data?.cost) || 0) * studentsCount;
+
+    // Discount normalization (supports legacy discountPct)
+    const type = data?.discountType === "amount" ? "amount" : "percent";
+    const legacyPct = Number.isFinite(Number(data?.discountPct))
+      ? Number(data.discountPct)
+      : null;
+
+    let rawValue =
+      data?.discountValue != null && data.discountValue !== ""
+        ? Number(data.discountValue)
+        : legacyPct; // if legacy present, treat as percent
+
+    rawValue = Number.isFinite(rawValue) ? rawValue : 0;
+
+    const discountAmount =
+      type === "amount"
+        ? clamp(rawValue, 0, grossRevenue)
+        : (grossRevenue * clamp(rawValue, 0, 100)) / 100;
+
+    const netRevenue = Math.max(0, grossRevenue - discountAmount);
+
+    // Instructor expense (prefer backend virtual; else compute)
     const perHourSum = (() => {
       if (data?.instructorRates && typeof data.instructorRates === "object") {
         const vals =
@@ -227,12 +262,30 @@ const CourseDetails = () => {
     })();
 
     const instructorExpense =
-      Number.isFinite(data?.instructorExpense) ? data.instructorExpense : perHourSum * totalHours;
+      Number.isFinite(data?.instructorExpense) && data.instructorExpense >= 0
+        ? data.instructorExpense
+        : perHourSum * totalHours;
 
     const materials = Number.isFinite(data?.materialsCost) ? data.materialsCost : 0;
-    const profit = Number.isFinite(data?.profit) ? data.profit : revenue - instructorExpense - materials;
 
-    return { sessions, totalSessions, totalHours, revenue, instructorExpense, materials, profit };
+    // Profit should be based on NET revenue after discount
+    const profit = netRevenue - instructorExpense - materials;
+
+    return {
+      sessions,
+      totalSessions,
+      totalHours,
+      studentsCount,
+      grossRevenue,
+      discountAmount,
+      netRevenue,
+      instructorExpense,
+      materials,
+      profit,
+      discountType: type,
+      discountValue: rawValue,
+      cost: Number(data?.cost) || 0,
+    };
   }, [data]);
 
   const instructors = useMemo(
@@ -448,12 +501,6 @@ const CourseDetails = () => {
   const title = data.title || "Untitled Course";
   const start = fmtDate(data.start_date || data.startDate);
   const end = fmtDate(data.end_date || data.endDate);
-  const students =
-    typeof data.students === "number"
-      ? data.students
-      : Array.isArray(data.enrolled)
-        ? data.enrolled.length
-        : 0;
 
   return (
     <main className="p-6 space-y-6">
@@ -484,7 +531,7 @@ const CourseDetails = () => {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-700">
               <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
                 <Users size={16} />
-                {students} students
+                {computed.studentsCount} students
               </span>
               {(data.start_date || data.end_date) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1">
@@ -500,8 +547,6 @@ const CourseDetails = () => {
               )}
             </div>
           </div>
-
-
         </div>
 
         {data.description && (
@@ -512,18 +557,31 @@ const CourseDetails = () => {
         )}
       </div>
 
-      {/* Stats */}
-      <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      {/* Stats (now includes discount + net revenue) */}
+      <section className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Stat label="Sessions" value={computed.totalSessions ?? 0} />
         <Stat label="Total Hours" value={(computed.totalHours ?? 0).toFixed(2)} />
         <Stat
-          label="Revenue"
-          value={fmtBHD(computed.revenue ?? 0)}
-          hint={`${fmtBHD(data.cost || 0)} × ${typeof data.students === "number" ? data.students : Array.isArray(data.enrolled) ? data.enrolled.length : 0
-            }`}
+          label="Revenue (Gross)"
+          value={fmtBHD(computed.grossRevenue ?? 0)}
+          hint={`${fmtBHD(computed.cost)} × ${computed.studentsCount}`}
         />
         <Stat
-          label="Expense"
+          label="Discount from Revenue"
+          value={fmtBHD(computed.discountAmount ?? 0)}
+          hint={
+            computed.discountType === "percent"
+              ? `${clamp(Number(computed.discountValue) || 0, 0, 100).toFixed(2)}%`
+              : "Fixed amount"
+          }
+        />
+        <Stat
+          label="Revenue (Net)"
+          value={fmtBHD(computed.netRevenue ?? 0)}
+          hint="Gross − Discount"
+        />
+        <Stat
+          label="Instructor Expense"
           value={fmtBHD(computed.instructorExpense ?? 0)}
           hint={
             <span className="inline-flex items-center gap-1">
@@ -531,16 +589,23 @@ const CourseDetails = () => {
             </span>
           }
         />
-        <Stat
-          label="Profit"
-          value={fmtBHD(computed.profit ?? 0)}
-          hint={
-            <span className="inline-flex items-center gap-1">
-              <DollarSign size={12} />
-              Revenue − Expenses
-            </span>
-          }
-        />
+      </section>
+
+      {/* Profit row (uses NET revenue) */}
+      <section className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="md:col-span-6 rounded-xl border border-gray-200 bg-white p-4">
+          <div className="text-xs text-gray-500">Profit</div>
+          <div
+            className={`mt-1 text-2xl font-semibold ${
+              (computed.profit ?? 0) < 0 ? "text-red-600" : "text-green-700"
+            }`}
+          >
+            {fmtBHD(computed.profit ?? 0)}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            Net Revenue − Instructor − Materials ({fmtBHD(computed.materials || 0)})
+          </div>
+        </div>
       </section>
 
       {/* Schedule (card layout) */}
@@ -548,17 +613,16 @@ const CourseDetails = () => {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
+        <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
             <div className="text-sm text-gray-600">
               {computed.totalSessions ?? 0} session{(computed.totalSessions ?? 0) === 1 ? "" : "s"}
             </div>
             <button
               type="button"
               onClick={() => setView("list")}
-              className={`inline-flex items-center btn btn-primary ${view === "list"
-                ? "btn-toggle-on"
-                : "btn-toggle-off"
-                }`}
+              className={`inline-flex items-center btn btn-primary ${
+                view === "list" ? "btn-toggle-on" : "btn-toggle-off"
+              }`}
               title="List view"
             >
               <ListIcon size={16} />
@@ -567,10 +631,9 @@ const CourseDetails = () => {
             <button
               type="button"
               onClick={() => setView("grid")}
-              className={`inline-flex items-center btn btn-primary ${view === "list"
-                ? "btn-toggle-off"
-                : "btn-toggle-on"
-                }`}
+              className={`inline-flex items-center btn btn-primary ${
+                view === "list" ? "btn-toggle-off" : "btn-toggle-on"
+              }`}
               title="Grid view"
             >
               <GridIcon size={16} />
@@ -588,10 +651,11 @@ const CourseDetails = () => {
               return (
                 <div
                   key={`${s.date}-${idx}`}
-                  className={`rounded-2xl border p-4 shadow-sm transition ${today
-                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
-                    : "border-gray-200 bg-white hover:shadow-md"
-                    }`}
+                  className={`rounded-2xl border p-4 shadow-sm transition ${
+                    today
+                      ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                      : "border-gray-200 bg-white hover:shadow-md"
+                  }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -629,10 +693,11 @@ const CourseDetails = () => {
               return (
                 <div
                   key={`${s.date}-${idx}`}
-                  className={`rounded-2xl border p-3 text-sm transition ${today
-                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
-                    : "border-gray-200 bg-white hover:shadow-md"
-                    }`}
+                  className={`rounded-2xl border p-3 text-sm transition ${
+                    today
+                      ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                      : "border-gray-200 bg-white hover:shadow-md"
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-gray-900">{fmtDate(s.date)}</div>
@@ -733,7 +798,7 @@ const CourseDetails = () => {
                       >
                         Clear
                       </button>
-                      {/* NEW: Print invoice per instructor */}
+                      {/* Print invoice per instructor */}
                       <button
                         type="button"
                         onClick={() => handlePrintInvoice(insId)}
@@ -748,8 +813,9 @@ const CourseDetails = () => {
 
                   {/* Slide-down list of days */}
                   <div
-                    className={`grid transition-all duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                      }`}
+                    className={`grid transition-all duration-300 ease-in-out ${
+                      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
                   >
                     <div className="overflow-hidden">
                       <div className="border-t border-gray-100 p-4">
@@ -785,7 +851,6 @@ const CourseDetails = () => {
         )}
       </section>
       {/* ================== End Attendance ================== */}
-
     </main>
   );
 };

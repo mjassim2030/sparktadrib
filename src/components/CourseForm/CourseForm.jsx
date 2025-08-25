@@ -5,7 +5,95 @@ import * as instructorService from "../../services/instructorService";
 import { List, Grid } from "lucide-react";
 import LocationInput from "../Location/LocationInput";
 
+/* PDF export */
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 /* --------------------------------- Config --------------------------------- */
+// ---- Arabic support helpers (jsPDF + AutoTable) ----
+
+// Put the TTF file in: public/fonts/NotoNaskhArabic-Regular.ttf
+async function ensureArabicFont(doc, lang = "en") {
+  if (lang !== "ar") return;
+  try {
+    const res = await fetch("/fonts/NotoNaskhArabic-Regular.ttf");
+    if (!res.ok) throw new Error("Font fetch failed");
+    const blob = await res.blob();
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const fontName = "NotoNaskhArabic";
+    const fontFile = "NotoNaskhArabic-Regular.ttf";
+    doc.addFileToVFS(fontFile, base64);
+    doc.addFont(fontFile, fontName, "normal");
+    doc.setFont(fontName, "normal");
+  } catch (e) {
+    // Fallback silently; Arabic text may not render if font missing
+    console.warn("Arabic font not loaded:", e);
+  }
+}
+
+const L = (lang = "en") => {
+  const ar = {
+    quotation: "عرض سعر",
+    detailedTitle: "تفاصيل العرض",
+    course: "الدورة",
+    location: "الموقع",
+    dates: "التواريخ",
+    sessionsAndHours: (s, h) => `الجلسات: ${s} | إجمالي الساعات: ${h}`,
+    headItem: "البند",
+    headDetails: "التفاصيل",
+    headAmount: "المبلغ",
+    feePerStudent: "رسوم الدورة (للطالب)",
+    students: "الطلاب",
+    revenueGross: "الإيراد (الإجمالي)",
+    discountPercent: "الخصم ٪ (من الإيراد)",
+    discountFixed: "الخصم (مبلغ ثابت)",
+    discountAmount: "قيمة الخصم",
+    revenueNet: "الإيراد (الصافي)",
+    instructorExpense: "تكلفة المدربين",
+    materialsCost: "تكلفة المواد",
+    estimatedProfit: "الربح التقديري",
+    courseLabel: "الدورة:",
+    quotationAmount: "قيمة العرض",
+  };
+  const en = {
+    quotation: "Quotation",
+    detailedTitle: "Course Quotation",
+    course: "Course",
+    location: "Location",
+    dates: "Dates",
+    sessionsAndHours: (s, h) => `Sessions: ${s} | Total Hours: ${h}`,
+    headItem: "Item",
+    headDetails: "Details",
+    headAmount: "Amount",
+    feePerStudent: "Course Fee (/Student)",
+    students: "Students",
+    revenueGross: "Revenue (Gross)",
+    discountPercent: "Discount % (of Revenue)",
+    discountFixed: "Discount (Fixed Amount)",
+    discountAmount: "Discount Amount",
+    revenueNet: "Revenue (Net)",
+    instructorExpense: "Instructor Expense",
+    materialsCost: "Materials Cost",
+    estimatedProfit: "Estimated Profit",
+    courseLabel: "Course:",
+    quotationAmount: "Quotation Amount",
+  };
+  return lang === "ar" ? ar : en;
+};
+
+const numFmt = (lang = "en", opts = {}) =>
+  new Intl.NumberFormat(lang === "ar" ? "ar" : undefined, opts);
+
+// x helpers for LTR/RTL text anchoring
+const xPos = (doc, lang, margin = 14) =>
+  lang === "ar" ? doc.internal.pageSize.getWidth() - margin : margin;
+const align = (lang) => (lang === "ar" ? "right" : "left");
+
 const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const initialFormData = {
@@ -17,22 +105,25 @@ const initialFormData = {
   location_place_id: "",
   start_date: "",
   end_date: "",
-  courseDatesTimes: [], // [{date:'YYYY-MM-DD', start_time:'HH:MM', end_time:'HH:MM'}]
+  courseDatesTimes: [],
   range_start_time: "16:00",
   range_end_time: "18:00",
-  daysOfWeek: [], // [0..6]
-  instructors: [], // [instructorId]
-  cost: "", // per student / course
+  daysOfWeek: [],
+  instructors: [],
+  cost: "",
   students: "",
   materialsCost: "",
-  instructorRates: {}, // { [instructorId]: hourlyRate }
+  instructorRates: {},
+
+  // Discount (floats for both % and amount)
+  discountType: "percent", // "percent" | "amount"
+  discountValue: "",       // string for controlled input; parsed to float
 };
 
 /* ------------------------------- Utilities -------------------------------- */
 const toDateOnly = (v) => {
   if (!v) return "";
   const s = String(v);
-  // Handles Date, ISO, or 'YYYY-MM-DD'
   if (v instanceof Date) return isNaN(v) ? "" : v.toISOString().slice(0, 10);
   if (s.length >= 10 && s[4] === "-" && s[7] === "-") return s.slice(0, 10);
   try {
@@ -46,14 +137,12 @@ const toDateOnly = (v) => {
 const toHHMM = (v, fallback = "00:00") => {
   if (!v && v !== 0) return fallback;
   const s = String(v);
-  // Accept 'HH:MM[:SS]'
   const m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (m) {
     const hh = m[1].padStart(2, "0");
     const mm = m[2];
     return `${hh}:${mm}`;
   }
-  // Accept minutes since midnight
   const asNum = Number(s);
   if (Number.isFinite(asNum)) {
     const hh = Math.floor(asNum / 60).toString().padStart(2, "0");
@@ -70,7 +159,7 @@ const diffHours = (startHHMM, endHHMM) => {
   if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
   let start = sh * 60 + sm;
   let end = eh * 60 + em;
-  if (end < start) end += 24 * 60; // crosses midnight
+  if (end < start) end += 24 * 60;
   return (end - start) / 60;
 };
 
@@ -79,14 +168,15 @@ const toNumber = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
 /* ------------------------------- CourseForm ------------------------------- */
 const CourseForm = (props) => {
-  // Accept multiple param names to be safe with existing routes
   const { hootId, courseId, id } = useParams();
-  const recordId = hootId || courseId || id; // editing when truthy
+  const recordId = hootId || courseId || id;
 
   // UI state
-  const [view, setView] = useState("list"); // "list" | "grid"
+  const [view, setView] = useState("list");
   const [daysOpen, setDaysOpen] = useState(false);
   const [instructorsOpen, setInstructorsOpen] = useState(false);
 
@@ -96,14 +186,14 @@ const CourseForm = (props) => {
   // Flags
   const [courseLoading, setCourseLoading] = useState(false);
   const [courseErr, setCourseErr] = useState("");
-  const [skipNextGen, setSkipNextGen] = useState(false); // prevent schedule overwrite on first hydration
+  const [skipNextGen, setSkipNextGen] = useState(false);
 
   // Instructors from DB
   const [instructors, setInstructors] = useState([]); // [{id, name, email}]
   const [insLoading, setInsLoading] = useState(true);
   const [insErr, setInsErr] = useState("");
 
-  // Refs (close popovers on outside click)
+  // Refs
   const daysRef = useRef(null);
   const instructorsRef = useRef(null);
 
@@ -118,13 +208,12 @@ const CourseForm = (props) => {
         const raw = await courseService.show(recordId);
         if (!alive) return;
 
-        // Normalize incoming data to the form shape
         const normalized = {
           ...initialFormData,
           ...raw,
           title: raw?.title ?? "",
           description: raw?.description ?? "",
-          location: raw?.location ?? "News",
+          location: raw?.location ?? "",
           start_date: toDateOnly(raw?.start_date),
           end_date: toDateOnly(raw?.end_date),
           range_start_time: toHHMM(raw?.range_start_time ?? "16:00", "16:00"),
@@ -147,9 +236,14 @@ const CourseForm = (props) => {
           students: raw?.students ?? "",
           materialsCost: raw?.materialsCost ?? "",
           instructorRates: raw?.instructorRates || {},
+
+          discountType: raw?.discountType === "amount" ? "amount" : "percent",
+          discountValue:
+            raw?.discountValue != null && raw.discountValue !== ""
+              ? String(raw.discountValue)
+              : "",
         };
 
-        // Prevent the auto-regenerate effect from overwriting existing schedule once
         setSkipNextGen(true);
         setFormData(normalized);
       } catch (e) {
@@ -172,23 +266,22 @@ const CourseForm = (props) => {
       try {
         setInsLoading(true);
         setInsErr("");
-        const list = await instructorService.index(); // [{id, name, email}]
-        const normalized = (list || []).map(i => ({
-          id: String(i.id ?? i._id),                // <<< normalize to string id
+        const list = await instructorService.index();
+        const normalized = (list || []).map((i) => ({
+          id: String(i.id ?? i._id),
           name: i.name || i.email || String(i.id ?? i._id),
           email: i.email || "",
         }));
 
         if (!alive) return;
 
-        // preserve selected “archived” ids (same as you had)
         const selectedIds = new Set((formData.instructors || []).map(String));
-        const knownIds = new Set(normalized.map(i => i.id));
-        const missing = [...selectedIds].filter(id => !knownIds.has(id));
+        const knownIds = new Set(normalized.map((i) => i.id));
+        const missing = [...selectedIds].filter((id) => !knownIds.has(id));
 
         setInstructors([
           ...normalized,
-          ...missing.map(id => ({ id, name: `(archived) ${id}`, email: "" })),
+          ...missing.map((id) => ({ id, name: `(archived) ${id}`, email: "" })),
         ]);
       } catch (e) {
         if (alive) setInsErr(e?.message || "Failed to load instructors");
@@ -199,7 +292,6 @@ const CourseForm = (props) => {
     return () => {
       alive = false;
     };
-    // re-run when edit target or selection changes materially
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordId, formData.instructors.length]);
 
@@ -207,7 +299,8 @@ const CourseForm = (props) => {
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (daysRef.current && !daysRef.current.contains(e.target)) setDaysOpen(false);
-      if (instructorsRef.current && !instructorsRef.current.contains(e.target)) setInstructorsOpen(false);
+      if (instructorsRef.current && !instructorsRef.current.contains(e.target))
+        setInstructorsOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -287,7 +380,6 @@ const CourseForm = (props) => {
   };
 
   useEffect(() => {
-    // Skip the very first run after hydration to preserve saved per-session times
     if (skipNextGen) {
       setSkipNextGen(false);
       return;
@@ -309,13 +401,35 @@ const CourseForm = (props) => {
   );
 
   const totalHours = useMemo(
-    () => (formData.courseDatesTimes || []).reduce((sum, dt) => sum + diffHours(dt.start_time, dt.end_time), 0),
+    () =>
+      (formData.courseDatesTimes || []).reduce(
+        (sum, dt) => sum + diffHours(dt.start_time, dt.end_time),
+        0
+      ),
     [formData.courseDatesTimes]
   );
 
-  const revenue = useMemo(
+  const grossRevenue = useMemo(
     () => toNumber(formData.cost) * toNumber(formData.students),
     [formData.cost, formData.students]
+  );
+
+  const discountValNum = useMemo(
+    () => toNumber(formData.discountValue),
+    [formData.discountValue]
+  );
+
+  const discountAmount = useMemo(() => {
+    if (formData.discountType === "percent") {
+      const pct = clamp(discountValNum, 0, 100);
+      return (grossRevenue * pct) / 100;
+    }
+    return clamp(discountValNum, 0, grossRevenue);
+  }, [formData.discountType, discountValNum, grossRevenue]);
+
+  const netRevenue = useMemo(
+    () => Math.max(0, grossRevenue - discountAmount),
+    [grossRevenue, discountAmount]
   );
 
   const instructorExpense = useMemo(() => {
@@ -327,37 +441,234 @@ const CourseForm = (props) => {
   }, [formData.instructors, formData.instructorRates, totalHours]);
 
   const profit = useMemo(
-    () => revenue - instructorExpense - toNumber(formData.materialsCost),
-    [revenue, instructorExpense, formData.materialsCost]
+    () => netRevenue - instructorExpense - toNumber(formData.materialsCost),
+    [netRevenue, instructorExpense, formData.materialsCost]
   );
 
   const fmtNum = (n) =>
-    new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
+    new Intl.NumberFormat(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n || 0);
+
+  /* ------------------------- Export (Detailed) ----------------------------- */
+  const handleExportQuote = async (lang = "en") => {
+    const doc = new jsPDF();
+    await ensureArabicFont(doc, lang);
+
+    const labels = L(lang);
+    const nf = numFmt(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const cf = numFmt(lang, { style: "currency", currency: "BHD", minimumFractionDigits: 2 });
+    const x = xPos(doc, lang);
+
+    const title = (formData.title || labels.detailedTitle).trim();
+
+    doc.setFontSize(16);
+    doc.text(title, x, 16, { align: align(lang) });
+
+    doc.setFontSize(11);
+    doc.text(
+      `${labels.location}: ${formData.location || "-"}`,
+      x,
+      24,
+      { align: align(lang) }
+    );
+    doc.text(
+      `${labels.dates}: ${formData.start_date || "-"} - ${formData.end_date || "-"}`,
+      x,
+      30,
+      { align: align(lang) }
+    );
+    doc.text(
+      labels.sessionsAndHours(
+        (formData.courseDatesTimes || []).length,
+        nf.format(
+          (formData.courseDatesTimes || []).reduce(
+            (sum, dt) => sum + diffHours(dt.start_time, dt.end_time),
+            0
+          )
+        )
+      ),
+      x,
+      36,
+      { align: align(lang) }
+    );
+
+    const discountLabel =
+      formData.discountType === "percent" ? labels.discountPercent : labels.discountFixed;
+
+    const discountValueDisplay =
+      formData.discountType === "percent"
+        ? `${nf.format(Math.min(100, Math.max(0, parseFloat(formData.discountValue || "0"))))} %`
+        : `${cf.format(parseFloat(formData.discountValue || "0"))}`;
+
+    autoTable(doc, {
+      startY: 44,
+      head: [[labels.headItem, labels.headDetails]],
+      body: [
+        [labels.feePerStudent, nf.format(parseFloat(formData.cost || 0))],
+        [labels.students, String(parseInt(formData.students || 0, 10))],
+        [labels.revenueGross, cf.format((parseFloat(formData.cost || 0) || 0) * (parseFloat(formData.students || 0) || 0))],
+        [discountLabel, discountValueDisplay],
+        [labels.discountAmount, cf.format((() => {
+          const gross = (parseFloat(formData.cost || 0) || 0) * (parseFloat(formData.students || 0) || 0);
+          const v = parseFloat(formData.discountValue || 0) || 0;
+          return formData.discountType === "percent"
+            ? gross * Math.min(100, Math.max(0, v)) / 100
+            : Math.min(gross, Math.max(0, v));
+        })())],
+        [labels.revenueNet, cf.format((() => {
+          const gross = (parseFloat(formData.cost || 0) || 0) * (parseFloat(formData.students || 0) || 0);
+          const v = parseFloat(formData.discountValue || 0) || 0;
+          const disc = formData.discountType === "percent"
+            ? gross * Math.min(100, Math.max(0, v)) / 100
+            : Math.min(gross, Math.max(0, v));
+          return Math.max(0, gross - disc);
+        })())],
+        [labels.instructorExpense, cf.format((() => {
+          const hours = (formData.courseDatesTimes || []).reduce(
+            (sum, dt) => sum + diffHours(dt.start_time, dt.end_time),
+            0
+          );
+          const perHour = (formData.instructors || []).reduce(
+            (sum, id) => sum + (parseFloat(formData.instructorRates?.[id]) || 0),
+            0
+          );
+          return perHour * hours;
+        })())],
+        [labels.materialsCost, cf.format(parseFloat(formData.materialsCost || 0) || 0)],
+        [labels.estimatedProfit, cf.format((() => {
+          const gross = (parseFloat(formData.cost || 0) || 0) * (parseFloat(formData.students || 0) || 0);
+          const v = parseFloat(formData.discountValue || 0) || 0;
+          const disc = formData.discountType === "percent"
+            ? gross * Math.min(100, Math.max(0, v)) / 100
+            : Math.min(gross, Math.max(0, v));
+          const net = Math.max(0, gross - disc);
+          const hours = (formData.courseDatesTimes || []).reduce(
+            (sum, dt) => sum + diffHours(dt.start_time, dt.end_time),
+            0
+          );
+          const perHour = (formData.instructors || []).reduce(
+            (sum, id) => sum + (parseFloat(formData.instructorRates?.[id]) || 0),
+            0
+          );
+          const instructorExpense = perHour * hours;
+          const materials = parseFloat(formData.materialsCost || 0) || 0;
+          return net - instructorExpense - materials;
+        })())],
+      ],
+      styles: {
+        font: lang === "ar" ? "NotoNaskhArabic" : undefined,
+        fontSize: 10,
+        halign: lang === "ar" ? "right" : "left",
+      },
+      headStyles: { fillColor: [34, 197, 94] },
+      columnStyles: {
+        0: { halign: lang === "ar" ? "right" : "left" },
+        1: { halign: "right" },
+      },
+      margin: { left: 14, right: 14 },
+      theme: "grid",
+    });
+
+    const safeName = (title || "quotation").replace(/[^\w\d-_]+/g, "_");
+    doc.save(`quotation_detailed_${safeName}${lang === "ar" ? "_ar" : ""}.pdf`);
+  };
+
+  /* ----------------------- Export (Simple Quotation) ----------------------- */
+  const handleExportSimpleQuote = async (lang = "en") => {
+    const doc = new jsPDF();
+    await ensureArabicFont(doc, lang);
+
+    const labels = L(lang);
+    const nf = numFmt(lang, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const cf = numFmt(lang, { style: "currency", currency: "BHD", minimumFractionDigits: 2 });
+    const x = xPos(doc, lang);
+
+    const title = (formData.title?.trim() || labels.quotation).trim();
+
+    const gross = (parseFloat(formData.cost || 0) || 0) * (parseFloat(formData.students || 0) || 0);
+    const v = parseFloat(formData.discountValue || 0) || 0;
+    const disc = formData.discountType === "percent"
+      ? gross * Math.min(100, Math.max(0, v)) / 100
+      : Math.min(gross, Math.max(0, v));
+    const net = Math.max(0, gross - disc);
+
+    const discountLabel = formData.discountType === "percent"
+      ? L(lang).discountPercent
+      : L(lang).discountFixed;
+
+    const discountValueDisplay =
+      formData.discountType === "percent"
+        ? `${nf.format(Math.min(100, Math.max(0, v)))} %`
+        : `${cf.format(Math.max(0, v))}`;
+
+    doc.setFontSize(16);
+    doc.text(labels.quotation, x, 16, { align: align(lang) });
+
+    doc.setFontSize(12);
+    doc.text(`${labels.courseLabel} ${title}`, x, 28, { align: align(lang) });
+
+    autoTable(doc, {
+      startY: 40,
+      styles: {
+        font: lang === "ar" ? "NotoNaskhArabic" : undefined,
+        fontSize: 11,
+        cellPadding: 6,
+        halign: lang === "ar" ? "right" : "left",
+      },
+      head: [[labels.headItem, labels.headAmount]],
+      body: [
+        [labels.revenueGross, cf.format(gross)],
+        [discountLabel, discountValueDisplay],
+        [labels.quotationAmount, cf.format(net)],
+      ],
+      headStyles: { fillColor: [34, 197, 94] },
+      columnStyles: {
+        0: { halign: lang === "ar" ? "right" : "left", cellWidth: 150 },
+        1: { halign: "right" },
+      },
+      margin: { left: 14, right: 14 },
+      theme: "grid",
+    });
+
+    const safeName = (title || "quotation").replace(/[^\w\d-_]+/g, "_");
+    doc.save(`quotation_${safeName}${lang === "ar" ? "_ar" : ""}.pdf`);
+  };
 
   /* --------------------------------- Submit -------------------------------- */
   const handleSubmit = (evt) => {
     evt.preventDefault();
 
-    // Clean + coerce values before submit
     const payload = {
-      ...formData,
-      // keep label plus geo fields if present
+      title: formData.title?.trim() || "",
+      description: formData.description?.trim() || "",
       location: formData.location?.trim() || "",
       location_lat: formData.location_lat ?? null,
       location_lon: formData.location_lon ?? null,
       location_place_id: formData.location_place_id || "",
+
       start_date: toDateOnly(formData.start_date),
       end_date: toDateOnly(formData.end_date),
       range_start_time: toHHMM(formData.range_start_time || "16:00", "16:00"),
       range_end_time: toHHMM(formData.range_end_time || "18:00", "18:00"),
       daysOfWeek: [...(formData.daysOfWeek || [])].sort((a, b) => a - b),
+
       instructors: [...(formData.instructors || [])].map(String),
       instructorRates: Object.fromEntries(
         Object.entries(formData.instructorRates || {}).map(([k, v]) => [String(k), toNumber(v)])
       ),
-      cost: toNumber(formData.cost),
+
+      cost: Math.max(0, toNumber(formData.cost)),
       students: Math.max(0, Math.floor(toNumber(formData.students))),
-      materialsCost: toNumber(formData.materialsCost),
+      materialsCost: Math.max(0, toNumber(formData.materialsCost)),
+
+      discountType: formData.discountType === "amount" ? "amount" : "percent",
+      discountValue:
+        formData.discountType === "percent"
+          ? clamp(toNumber(formData.discountValue), 0, 100)
+          : Math.max(0, toNumber(formData.discountValue)),
+
       courseDatesTimes: (formData.courseDatesTimes || [])
         .map((x) => ({
           date: toDateOnly(x.date),
@@ -376,17 +687,23 @@ const CourseForm = (props) => {
   return (
     <main className="p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">{recordId ? "Edit Course" : "New Course"}</h1>
+        <h1 className="text-2xl font-bold text-gray-900">
+          {recordId ? "Edit Course" : "New Course"}
+        </h1>
 
         {courseErr && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{courseErr}</div>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {courseErr}
+          </div>
         )}
 
         {/* Core Info */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Title */}
           <div className="md:col-span-4">
-            <label htmlFor="title-input" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+            <label htmlFor="title-input" className="block text-sm font-medium text-gray-700 mb-1">
+              Title
+            </label>
             <input
               required
               type="text"
@@ -402,7 +719,9 @@ const CourseForm = (props) => {
 
           {/* Dates */}
           <div>
-            <label htmlFor="start-date-input" className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+            <label htmlFor="start-date-input" className="block text-sm font-medium text-gray-700 mb-1">
+              Start Date
+            </label>
             <input
               required
               type="date"
@@ -415,7 +734,9 @@ const CourseForm = (props) => {
             />
           </div>
           <div>
-            <label htmlFor="end-date-input" className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+            <label htmlFor="end-date-input" className="block text-sm font-medium text-gray-700 mb-1">
+              End Date
+            </label>
             <input
               required
               type="date"
@@ -430,7 +751,9 @@ const CourseForm = (props) => {
 
           {/* Time Range */}
           <div>
-            <label htmlFor="range-start-time" className="block text-sm font-medium text-gray-700 mb-1">Range Start</label>
+            <label htmlFor="range-start-time" className="block text-sm font-medium text-gray-700 mb-1">
+              Range Start
+            </label>
             <input
               required
               type="time"
@@ -443,7 +766,9 @@ const CourseForm = (props) => {
             />
           </div>
           <div>
-            <label htmlFor="range-end-time" className="block text-sm font-medium text-gray-700 mb-1">Range End</label>
+            <label htmlFor="range-end-time" className="block text-sm font-medium text-gray-700 mb-1">
+              Range End
+            </label>
             <input
               required
               type="time"
@@ -456,7 +781,7 @@ const CourseForm = (props) => {
             />
           </div>
 
-          {/* Days (dropdown with checkboxes) */}
+          {/* Days */}
           <div className="relative" ref={daysRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Course Frequency (Days)</label>
             <button
@@ -495,19 +820,22 @@ const CourseForm = (props) => {
               required
               type="number"
               inputMode="decimal"
-              step="1"
+              step="any"
+              min="0"
               name="cost"
               id="cost-input"
               value={formData.cost}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
-              placeholder="e.g., 150"
+              placeholder="e.g., 150.00"
               disabled={courseLoading}
             />
           </div>
 
           <div>
-            <label htmlFor="students-input" className="block text-sm font-medium text-gray-700 mb-1">Students (Count)</label>
+            <label htmlFor="students-input" className="block text-sm font-medium text-gray-700 mb-1">
+              Students (Count)
+            </label>
             <input
               required
               type="number"
@@ -525,22 +853,59 @@ const CourseForm = (props) => {
           </div>
 
           <div>
-            <label htmlFor="materialsCost-input" className="block text-sm font-medium text-gray-700 mb-1">Materials Cost</label>
+            <label htmlFor="materialsCost-input" className="block text-sm font-medium text-gray-700 mb-1">
+              Materials Cost
+            </label>
             <input
               type="number"
               inputMode="decimal"
-              step="1"
+              step="0.01"
+              min="0"
               name="materialsCost"
               id="materialsCost-input"
               value={formData.materialsCost}
               onChange={handleChange}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
-              placeholder="e.g., 50"
+              placeholder="e.g., 50.00"
               disabled={courseLoading}
             />
           </div>
 
-          {/* Location (Worldwide) */}
+          {/* Discount */}
+          <div className="md:col-span-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Discount on Revenue</label>
+            <div className="grid grid-cols-[1fr,1fr] gap-2">
+              <select
+                name="discountType"
+                value={formData.discountType}
+                onChange={(e) => setFormData((s) => ({ ...s, discountType: e.target.value }))}
+                className="rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+                disabled={courseLoading}
+              >
+                <option value="percent">Percent (%)</option>
+                <option value="amount">Fixed Amount</option>
+              </select>
+
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                max={formData.discountType === "percent" ? "100" : undefined}
+                name="discountValue"
+                value={formData.discountValue}
+                onChange={(e) => setFormData((s) => ({ ...s, discountValue: e.target.value }))}
+                className="rounded-lg border border-gray-300 px-3 py-2 focus:ring-2 focus:ring-green-600"
+                placeholder={formData.discountType === "percent" ? "e.g., 12.5" : "e.g., 150.75"}
+                disabled={courseLoading}
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Applied to gross revenue. All totals use net revenue after discount.
+            </p>
+          </div>
+
+          {/* Location */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
             <LocationInput
@@ -561,7 +926,7 @@ const CourseForm = (props) => {
             </p>
           </div>
 
-          {/* Instructors (DB) */}
+          {/* Instructors */}
           <div className="relative md:col-span-2" ref={instructorsRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">Instructors</label>
             <button
@@ -583,9 +948,7 @@ const CourseForm = (props) => {
             </button>
 
             {instructorsOpen && !insLoading && (
-              <div
-                className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 shadow-lg max-h-60 overflow-auto"
-              >
+              <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white p-3 shadow-lg max-h-60 overflow-auto">
                 {insErr && (
                   <div className="mb-2 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-700">
                     {insErr}
@@ -596,21 +959,18 @@ const CourseForm = (props) => {
                   <div className="p-2 text-sm text-gray-600">No instructors found.</div>
                 ) : (
                   instructors.map((ins, index) => {
-                    const insId = String(ins.id); // ensure string
+                    const insId = String(ins.id);
                     const isChecked = (formData.instructors || []).map(String).includes(insId);
 
                     return (
-                      <label
-                        key={`${insId}-${index}`}
-                        className="flex items-center justify-between gap-3 py-1 cursor-pointer"
-                      >
+                      <label key={`${insId}-${index}`} className="flex items-center justify-between gap-3 py-1 cursor-pointer">
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             className="rounded border-gray-300 text-gray-900 focus:ring-green-600"
                             checked={isChecked}
                             onChange={() => toggleInstructor(insId)}
-                            onClick={(e) => e.stopPropagation()} // defensive: avoid any outside click handlers
+                            onClick={(e) => e.stopPropagation()}
                           />
                           <span className="text-gray-800">{ins.name}</span>
                         </div>
@@ -618,7 +978,8 @@ const CourseForm = (props) => {
                         {isChecked && (
                           <input
                             type="number"
-                            step="1"
+                            step="0.01"
+                            min="0"
                             inputMode="decimal"
                             placeholder="Pay/hr"
                             className="w-28 h-9 rounded-md border border-gray-300 px-2 text-sm focus:ring-2 focus:ring-green-600"
@@ -638,7 +999,9 @@ const CourseForm = (props) => {
 
         {/* Description */}
         <div>
-          <label htmlFor="description-input" className="block text-sm font-medium text-gray-700 mb-1">Course Description</label>
+          <label htmlFor="description-input" className="block text-sm font-medium text-gray-700 mb-1">
+            Course Description
+          </label>
           <textarea
             required
             name="description"
@@ -673,10 +1036,11 @@ const CourseForm = (props) => {
                         <td className="px-4 py-2">
                           <input
                             type="number"
-                            step="1"
+                            step="0.01"
+                            min="0"
                             inputMode="decimal"
                             className="w-40 h-10 rounded-md border border-gray-300 px-3 focus:ring-2 focus:ring-green-600"
-                            placeholder="e.g., 12"
+                            placeholder="e.g., 12.50"
                             value={formData.instructorRates?.[id] ?? ""}
                             onChange={(e) => setInstructorRate(id, e.target.value)}
                           />
@@ -778,7 +1142,7 @@ const CourseForm = (props) => {
             </div>
           )}
 
-          {/* Grid View (7 columns) */}
+          {/* Grid View */}
           {view === "grid" && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-4">
               {(formData.courseDatesTimes || []).map((dt, idx) => (
@@ -833,7 +1197,7 @@ const CourseForm = (props) => {
         {/* Financial Summary */}
         <div>
           <h2 className="text-sm font-semibold text-gray-700 mb-3">Financial Summary</h2>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="text-xs text-gray-500">Sessions</div>
               <div className="mt-1 text-xl font-semibold">{totalSessions}</div>
@@ -843,43 +1207,79 @@ const CourseForm = (props) => {
               <div className="mt-1 text-xl font-semibold">{fmtNum(totalHours)}</div>
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <div className="text-xs text-gray-500">Revenue</div>
-              <div className="mt-1 text-xl font-semibold">BHD {fmtNum(revenue)}</div>
+              <div className="text-xs text-gray-500">Revenue (Gross)</div>
+              <div className="mt-1 text-xl font-semibold">BHD {fmtNum(grossRevenue)}</div>
               <div className="text-xs text-gray-500 mt-1">
                 {fmtNum(toNumber(formData.cost))} × {toNumber(formData.students)}
               </div>
             </div>
+
+            {/* Discount card */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="text-xs text-gray-500">Discount from Revenue</div>
+              <div className="mt-1 text-xl font-semibold">BHD {fmtNum(discountAmount)}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {formData.discountType === "percent"
+                  ? `${fmtNum(clamp(toNumber(formData.discountValue), 0, 100))}%`
+                  : `Fixed amount`}
+              </div>
+            </div>
+
+            {/* Net Revenue card */}
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div className="text-xs text-gray-500">Revenue (Net)</div>
+              <div className="mt-1 text-xl font-semibold">BHD {fmtNum(netRevenue)}</div>
+              <div className="text-xs text-gray-500 mt-1">Gross − Discount</div>
+            </div>
+
             <div className="rounded-xl border border-gray-200 bg-white p-4">
               <div className="text-xs text-gray-500">Instructor Expense</div>
               <div className="mt-1 text-xl font-semibold">BHD {fmtNum(instructorExpense)}</div>
               <div className="text-xs text-gray-500 mt-1">Rates × total hours</div>
             </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
+          </div>
+
+          {/* Profit row */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
+            <div className="md:col-span-5 rounded-xl border border-gray-200 bg-white p-4">
               <div className="text-xs text-gray-500">Profit</div>
-              <div className={`mt-1 text-xl font-semibold ${profit < 0 ? "text-red-600" : "text-green-700"}`}>
+              <div className={`mt-1 text-2xl font-semibold ${profit < 0 ? "text-red-600" : "text-green-700"}`}>
                 BHD {fmtNum(profit)}
               </div>
               <div className="text-xs text-gray-500 mt-1">
-                Revenue − Instructor − Materials ({fmtNum(toNumber(formData.materialsCost))})
+                Net Revenue − Instructor − Materials ({fmtNum(toNumber(formData.materialsCost))})
               </div>
             </div>
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {/* NEW: Simple quotation (minimal) */}
           <button
             type="button"
             className="btn btn-secondary"
-            onClick={() => window.history.back()}
+            onClick={() => handleExportSimpleQuote("ar")}
+            disabled={courseLoading}
+            title="تصدير عرض سعر مبسط"
           >
+            تصدير عرض مبسط (PDF)
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => handleExportQuote("ar")}
+            disabled={courseLoading}
+            title="تصدير عرض سعر تفصيلي"
+          >
+            تصدير عرض تفصيلي (PDF)
+          </button>
+
+          <button type="button" className="btn btn-secondary" onClick={() => window.history.back()}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={courseLoading}
-          >
+          <button type="submit" className="btn btn-primary" disabled={courseLoading}>
             Submit
           </button>
         </div>
