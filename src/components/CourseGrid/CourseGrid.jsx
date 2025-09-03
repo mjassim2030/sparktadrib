@@ -37,8 +37,8 @@ const normalizeCourse = (raw) => {
     typeof raw.students === "number"
       ? raw.students
       : Array.isArray(raw.enrolled)
-      ? raw.enrolled.length
-      : raw.studentsCount || 0;
+        ? raw.enrolled.length
+        : raw.studentsCount || 0;
 
   const start =
     raw.start_date || raw.startDate || raw.start || raw.begin || raw.range?.from;
@@ -131,9 +131,8 @@ const FinanceBadges = ({ c }) => (
       Expenses: {fmtBHD(c.expenses)}
     </span>
     <span
-      className={`rounded-full px-2.5 py-1 ${
-        c.profit >= 0 ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"
-      }`}
+      className={`rounded-full px-2.5 py-1 ${c.profit >= 0 ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"
+        }`}
     >
       Profit: {fmtBHD(c.profit)}
     </span>
@@ -183,39 +182,38 @@ const CourseCard = ({ c }) => (
 const CourseRow = ({ c }) => (
   <Link
     to={`/courses/${c.id}`}
-    className="group grid grid-cols-1 md:grid-cols-[1.4fr,0.7fr,0.9fr,0.9fr,0.6fr,auto] gap-3 items-center rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition"
+    className="group grid grid-cols-1 md:grid-cols-[1.6fr,1fr,1fr,1fr,1fr] gap-4 items-center rounded-xl border border-gray-200 bg-white px-5 py-3 hover:bg-gray-50 transition"
   >
-    <div className="min-w-0">
-      <div className="text-sm font-semibold text-gray-900 truncate">{c.title}</div>
+    {/* Course title + details */}
+    <div className="min-w-0 flex flex-col">
+      <span className="text-sm font-semibold text-gray-900 truncate">
+        {c.title}
+      </span>
       {c.location && (
-        <div className="text-xs text-gray-500 truncate mt-0.5">{c.location}</div>
+        <span className="text-xs text-gray-500 truncate">
+          {c.location}
+        </span>
       )}
+      <span className="text-xs text-gray-500 truncate">
+        {c.startLabel && c.endLabel
+          ? `${c.startLabel} - ${c.endLabel}`
+          : "TBD"}
+      </span>
     </div>
-    <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Total Hours: </span>
+
+    {/* Columns for numbers */}
+    <div className="text-sm text-gray-700 text-right tabular-nums">
       {c.totalHours}
     </div>
-    <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Revenue: </span>
+    <div className="text-sm text-gray-700 text-right tabular-nums">
       {fmtBHD(c.revenue)}
     </div>
-    <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Profit: </span>
-      {fmtBHD(c.profit)}
-    </div>
-    <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Expenses: </span>
+    <div className="text-sm text-gray-700 text-right tabular-nums">
       {fmtBHD(c.expenses)}
     </div>
-    <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">From - TO: </span>
-      {`${c.startLabel} - ${c.endLabel}` || "TBD"}
+    <div className="text-sm text-gray-700 text-right font-medium tabular-nums">
+      {fmtBHD(c.profit)}
     </div>
-    {/* <div className="justify-self-end">
-      <span className="text-sm font-medium text-blue-700 group-hover:underline">
-        View
-      </span>
-    </div> */}
   </Link>
 );
 
@@ -282,9 +280,8 @@ const CourseGrid = ({ hoots = [] }) => {
         <div className="rounded-xl border border-gray-200 bg-white p-4">
           <div className="text-xs text-gray-500">Total Profit (All Courses)</div>
           <div
-            className={`mt-1 text-xl font-semibold ${
-              totals.profit >= 0 ? "text-gray-900" : "text-rose-700"
-            }`}
+            className={`mt-1 text-xl font-semibold ${totals.profit >= 0 ? "text-gray-900" : "text-rose-700"
+              }`}
           >
             {fmtBHD(totals.profit)}
           </div>
@@ -302,13 +299,12 @@ const CourseGrid = ({ hoots = [] }) => {
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="hidden md:grid md:grid-cols-[1.4fr,0.7fr,0.9fr,0.9fr,0.9fr,auto] text-xs font-semibold text-gray-600 px-2">
-            <div>Title</div>
-            <div>Total Hours</div>
-            <div>Revenue</div>
-            <div>Expenses</div>
-            <div>Profit</div>
-            <div>From - To</div>
+          <div className="hidden md:grid md:grid-cols-[1.6fr,1fr,1fr,1fr,1fr] text-xs font-semibold text-gray-600 px-2">
+            <div className="truncate">Course</div>
+            <div className="text-right">Hours</div>
+            <div className="text-right">Revenue</div>
+            <div className="text-right">Expenses</div>
+            <div className="text-right">Profit</div>
           </div>
           {courses.map((c) => (
             <CourseRow key={c.id} c={c} />
