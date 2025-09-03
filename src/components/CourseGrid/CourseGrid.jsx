@@ -76,6 +76,8 @@ const normalizeCourse = (raw) => {
 
   // Materials (optional) and Profit (prefer explicit; else revenue - instructorExpense - materials)
   const materials = Number.isFinite(raw?.materialsCost) ? Number(raw.materialsCost) : 0;
+
+  const totalExpenses = instructorExpense + materials;
   const profit = Number.isFinite(raw?.profit)
     ? Number(raw.profit)
     : revenue - instructorExpense - materials;
@@ -93,7 +95,7 @@ const normalizeCourse = (raw) => {
 
     // Finance (aligned with CourseDetails)
     revenue,
-    instructorPaid: instructorExpense, // naming for the grid
+    expenses: totalExpenses,
     materials,
     profit,
 
@@ -112,9 +114,9 @@ const EmptyState = () => (
 
 const FinanceBadges = ({ c }) => (
   <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-700">
-    <span className="rounded-full bg-gray-100 px-2.5 py-1">
+    {/* <span className="rounded-full bg-gray-100 px-2.5 py-1">
       Students: {c.students}
-    </span>
+    </span> */}
     <span className="rounded-full bg-gray-100 px-2.5 py-1">
       {c.startLabel || "TBD"} {c.endLabel ? `– ${c.endLabel}` : ""}
     </span>
@@ -125,6 +127,9 @@ const FinanceBadges = ({ c }) => (
     <span className="rounded-full bg-emerald-50 text-emerald-700 px-2.5 py-1">
       Revenue: {fmtBHD(c.revenue)}
     </span>
+    <span className="rounded-full bg-amber-50 text-amber-700 px-2.5 py-1">
+      Expenses: {fmtBHD(c.expenses)}
+    </span>
     <span
       className={`rounded-full px-2.5 py-1 ${
         c.profit >= 0 ? "bg-blue-50 text-blue-700" : "bg-rose-50 text-rose-700"
@@ -132,9 +137,7 @@ const FinanceBadges = ({ c }) => (
     >
       Profit: {fmtBHD(c.profit)}
     </span>
-    <span className="rounded-full bg-amber-50 text-amber-700 px-2.5 py-1">
-      Instructor Paid: {fmtBHD(c.instructorPaid)}
-    </span>
+
   </div>
 );
 
@@ -180,7 +183,7 @@ const CourseCard = ({ c }) => (
 const CourseRow = ({ c }) => (
   <Link
     to={`/courses/${c.id}`}
-    className="group grid grid-cols-1 md:grid-cols-[1.4fr,0.7fr,0.9fr,0.9fr,0.9fr,auto] gap-3 items-center rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition"
+    className="group grid grid-cols-1 md:grid-cols-[1.4fr,0.7fr,0.9fr,0.9fr,0.6fr,auto] gap-3 items-center rounded-xl border border-gray-200 bg-white p-4 hover:bg-gray-50 transition"
   >
     <div className="min-w-0">
       <div className="text-sm font-semibold text-gray-900 truncate">{c.title}</div>
@@ -189,8 +192,8 @@ const CourseRow = ({ c }) => (
       )}
     </div>
     <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Students: </span>
-      {c.students}
+      <span className="md:hidden font-medium">Total Hours: </span>
+      {c.totalHours}
     </div>
     <div className="text-sm text-gray-700">
       <span className="md:hidden font-medium">Revenue: </span>
@@ -201,12 +204,12 @@ const CourseRow = ({ c }) => (
       {fmtBHD(c.profit)}
     </div>
     <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Instructor Paid: </span>
-      {fmtBHD(c.instructorPaid)}
+      <span className="md:hidden font-medium">Expenses: </span>
+      {fmtBHD(c.expenses)}
     </div>
     <div className="text-sm text-gray-700">
-      <span className="md:hidden font-medium">Start: </span>
-      {c.startLabel || "TBD"}
+      <span className="md:hidden font-medium">From - TO: </span>
+      {`${c.startLabel} - ${c.endLabel}` || "TBD"}
     </div>
     {/* <div className="justify-self-end">
       <span className="text-sm font-medium text-blue-700 group-hover:underline">
@@ -298,14 +301,14 @@ const CourseGrid = ({ hoots = [] }) => {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="hidden md:grid md:grid-cols-[1.4fr,0.7fr,0.9fr,0.9fr,0.9fr,auto] text-xs font-semibold text-gray-600 px-2">
             <div>Title</div>
-            <div>Students</div>
+            <div>Total Hours</div>
             <div>Revenue</div>
+            <div>Expenses</div>
             <div>Profit</div>
-            <div>Instructor Paid</div>
-            <div className="justify-self-end">Action</div>
+            <div>From - To</div>
           </div>
           {courses.map((c) => (
             <CourseRow key={c.id} c={c} />

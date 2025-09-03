@@ -95,7 +95,7 @@ async function loadAttendance(courseId, token, signal) {
       signal,
     });
     if (r.ok) return r.json(); // { [instructorId]: string[] }
-  } catch {}
+  } catch { }
   try {
     const raw = localStorage.getItem(lsKey(courseId));
     return raw ? JSON.parse(raw) : {};
@@ -115,7 +115,7 @@ async function saveAttendance(courseId, map, token) {
       body: JSON.stringify(map),
     });
     if (r.ok) return true;
-  } catch {}
+  } catch { }
   try {
     localStorage.setItem(lsKey(courseId), JSON.stringify(map || {}));
     return true;
@@ -187,7 +187,7 @@ const CourseDetails = () => {
           list.map((i) => [String(i.id), i.name || i.email || String(i.id)])
         );
         if (alive) setInsLookup(map);
-      } catch {}
+      } catch { }
     })();
     return () => {
       alive = false;
@@ -220,8 +220,8 @@ const CourseDetails = () => {
     const studentsCount = Number.isFinite(data?.students)
       ? data.students
       : Array.isArray(data?.enrolled)
-      ? data.enrolled.length
-      : 0;
+        ? data.enrolled.length
+        : 0;
 
     // Gross revenue
     const grossRevenue =
@@ -268,6 +268,8 @@ const CourseDetails = () => {
 
     const materials = Number.isFinite(data?.materialsCost) ? data.materialsCost : 0;
 
+    const totalExpense = instructorExpense + materials
+
     // Profit should be based on NET revenue after discount
     const profit = netRevenue - instructorExpense - materials;
 
@@ -281,6 +283,7 @@ const CourseDetails = () => {
       netRevenue,
       instructorExpense,
       materials,
+      totalExpense,
       profit,
       discountType: type,
       discountValue: rawValue,
@@ -558,15 +561,15 @@ const CourseDetails = () => {
       </div>
 
       {/* Stats (now includes discount + net revenue) */}
-      <section className="grid grid-cols-1 md:grid-cols-6 gap-4">
+      <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Stat label="Sessions" value={computed.totalSessions ?? 0} />
         <Stat label="Total Hours" value={(computed.totalHours ?? 0).toFixed(2)} />
-        <Stat
+        {/* <Stat
           label="Revenue (Gross)"
           value={fmtBHD(computed.grossRevenue ?? 0)}
           hint={`${fmtBHD(computed.cost)} × ${computed.studentsCount}`}
-        />
-        <Stat
+        /> */}
+        {/* <Stat
           label="Discount from Revenue"
           value={fmtBHD(computed.discountAmount ?? 0)}
           hint={
@@ -574,38 +577,31 @@ const CourseDetails = () => {
               ? `${clamp(Number(computed.discountValue) || 0, 0, 100).toFixed(2)}%`
               : "Fixed amount"
           }
-        />
+        /> */}
         <Stat
           label="Revenue (Net)"
           value={fmtBHD(computed.netRevenue ?? 0)}
           hint="Gross − Discount"
         />
         <Stat
-          label="Instructor Expense"
-          value={fmtBHD(computed.instructorExpense ?? 0)}
+          label="Expense"
+          value={fmtBHD(computed.totalExpense ?? 0)}
           hint={
             <span className="inline-flex items-center gap-1">
-              <Clock size={12} /> × total hours
+              <Clock size={12} /> × total hours + Materials Cost
             </span>
           }
         />
-      </section>
-
-      {/* Profit row (uses NET revenue) */}
-      <section className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="md:col-span-6 rounded-xl border border-gray-200 bg-white p-4">
-          <div className="text-xs text-gray-500">Profit</div>
-          <div
-            className={`mt-1 text-2xl font-semibold ${
-              (computed.profit ?? 0) < 0 ? "text-red-600" : "text-green-700"
+        <Stat
+          label="Profit"
+          value={fmtBHD(computed.profit ?? 0)}
+          hint="Net Revenue − Expenses"
+          className={`mt-1 text-2xl font-semibold px-3 py-2 rounded-lg ${(computed.profit ?? 0) < 0
+              ? "bg-red-100 text-red-700"
+              : "bg-green-100 text-green-700"
             }`}
-          >
-            {fmtBHD(computed.profit ?? 0)}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Net Revenue − Instructor − Materials ({fmtBHD(computed.materials || 0)})
-          </div>
-        </div>
+        />
+
       </section>
 
       {/* Schedule (card layout) */}
@@ -613,16 +609,15 @@ const CourseDetails = () => {
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Schedule</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
+          <div className="grid grid-cols-1 md:grid-cols-[1.5fr,auto,auto] gap-3 items-center p-4">
             <div className="text-sm text-gray-600">
               {computed.totalSessions ?? 0} session{(computed.totalSessions ?? 0) === 1 ? "" : "s"}
             </div>
             <button
               type="button"
               onClick={() => setView("list")}
-              className={`inline-flex items-center btn btn-primary ${
-                view === "list" ? "btn-toggle-on" : "btn-toggle-off"
-              }`}
+              className={`inline-flex items-center btn btn-primary ${view === "list" ? "btn-toggle-on" : "btn-toggle-off"
+                }`}
               title="List view"
             >
               <ListIcon size={16} />
@@ -631,9 +626,8 @@ const CourseDetails = () => {
             <button
               type="button"
               onClick={() => setView("grid")}
-              className={`inline-flex items-center btn btn-primary ${
-                view === "list" ? "btn-toggle-off" : "btn-toggle-on"
-              }`}
+              className={`inline-flex items-center btn btn-primary ${view === "list" ? "btn-toggle-off" : "btn-toggle-on"
+                }`}
               title="Grid view"
             >
               <GridIcon size={16} />
@@ -651,11 +645,10 @@ const CourseDetails = () => {
               return (
                 <div
                   key={`${s.date}-${idx}`}
-                  className={`rounded-2xl border p-4 shadow-sm transition ${
-                    today
-                      ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
-                      : "border-gray-200 bg-white hover:shadow-md"
-                  }`}
+                  className={`rounded-2xl border p-4 shadow-sm transition ${today
+                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                    : "border-gray-200 bg-white hover:shadow-md"
+                    }`}
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -693,11 +686,10 @@ const CourseDetails = () => {
               return (
                 <div
                   key={`${s.date}-${idx}`}
-                  className={`rounded-2xl border p-3 text-sm transition ${
-                    today
-                      ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
-                      : "border-gray-200 bg-white hover:shadow-md"
-                  }`}
+                  className={`rounded-2xl border p-3 text-sm transition ${today
+                    ? "border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200"
+                    : "border-gray-200 bg-white hover:shadow-md"
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-medium text-gray-900">{fmtDate(s.date)}</div>
@@ -813,9 +805,8 @@ const CourseDetails = () => {
 
                   {/* Slide-down list of days */}
                   <div
-                    className={`grid transition-all duration-300 ease-in-out ${
-                      open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                    }`}
+                    className={`grid transition-all duration-300 ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                      }`}
                   >
                     <div className="overflow-hidden">
                       <div className="border-t border-gray-100 p-4">
